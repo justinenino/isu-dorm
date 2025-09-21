@@ -116,7 +116,7 @@ if ($student['building_name']) {
 }
 
 // Get student's complaints
-$stmt = $pdo->prepare("SELECT * FROM complaints WHERE student_id = ? ORDER BY submitted_at DESC");
+$stmt = $pdo->prepare("SELECT * FROM complaints WHERE student_id = ? ORDER BY created_at DESC");
 $stmt->execute([$_SESSION['user_id']]);
 $complaints = $stmt->fetchAll();
 ?>
@@ -233,7 +233,7 @@ $complaints = $stmt->fetchAll();
                                     ?>
                                     <span class="<?php echo $status_class; ?>"><?php echo ucfirst($complaint['status']); ?></span>
                                 </td>
-                                <td><?php echo date('M j, Y g:i A', strtotime($complaint['submitted_at'])); ?></td>
+                                <td><?php echo date('M j, Y g:i A', strtotime($complaint['created_at'])); ?></td>
                                 <td>
                                     <?php if ($complaint['resolved_at']): ?>
                                         <?php echo date('M j, Y g:i A', strtotime($complaint['resolved_at'])); ?>
@@ -467,7 +467,7 @@ $(document).ready(function() {
                     <h6>Complaint Information</h6>
                     <p><strong>Subject:</strong> ${complaint.subject}</p>
                     <p><strong>Status:</strong> <span class="${statusClass}">${complaint.status}</span></p>
-                    <p><strong>Submitted:</strong> ${new Date(complaint.submitted_at).toLocaleString()}</p>
+                    <p><strong>Submitted:</strong> ${new Date(complaint.created_at).toLocaleString()}</p>
                 </div>
                 <div class="col-md-6">
                     <h6>Processing</h6>

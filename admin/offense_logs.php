@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $offense_type = $_POST['offense_type'];
                 $description = $_POST['description'];
                 $severity = $_POST['severity'];
-                $action_taken = $_POST['action_taken'];
+                $admin_notes = $_POST['admin_notes'];
                 $reported_by = $_POST['reported_by'];
                 $room_id = $_POST['room_id'] ?? null;
                 
@@ -26,26 +26,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     
                     if (empty($room_students)) {
                         $_SESSION['error'] = "No students found in the selected room.";
-                        header("Location: offense_logs.php");
+                        header("Location: offenses.php");
                         exit;
                     }
                     
                     // Log offense for each student in the room
-                    $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
                     foreach ($room_students as $student) {
-                        $stmt->execute([$student['id'], $offense_type, $description, $severity, $action_taken, $reported_by]);
+                        $stmt->execute([$student['id'], $offense_type, $description, $severity, $admin_notes, $reported_by]);
                     }
                     
                     $_SESSION['success'] = "Offense logged for " . count($room_students) . " student(s) in the room.";
                 } else {
                     // Log offense for specific student
-                    $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$student_id, $offense_type, $description, $severity, $action_taken, $reported_by]);
+                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$student_id, $offense_type, $description, $severity, $admin_notes, $reported_by]);
                     
                     $_SESSION['success'] = "Offense logged successfully.";
                 }
                 
-                header("Location: offense_logs.php");
+                header("Location: offenses.php");
                 exit;
                 break;
                 
@@ -57,24 +57,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Validate inputs
                 if (empty($offense_id) || empty($status) || empty($admin_response)) {
                     $_SESSION['error'] = "All fields are required.";
-                    header("Location: offense_logs.php");
+                    header("Location: offenses.php");
                     exit;
                 }
                 
                 $pdo = getConnection();
                 
                 // First, check if the offense exists
-                $check_stmt = $pdo->prepare("SELECT id FROM offense_logs WHERE id = ?");
+                $check_stmt = $pdo->prepare("SELECT id FROM offenses WHERE id = ?");
                 $check_stmt->execute([$offense_id]);
                 
                 if (!$check_stmt->fetch()) {
                     $_SESSION['error'] = "Offense not found.";
-                    header("Location: offense_logs.php");
+                    header("Location: offenses.php");
                     exit;
                 }
                 
                 // Update the offense
-                $stmt = $pdo->prepare("UPDATE offense_logs SET status = ?, action_taken = CONCAT(IFNULL(action_taken, ''), '\n\nAdmin Response: ', ?), resolved_at = ? WHERE id = ?");
+                $stmt = $pdo->prepare("UPDATE offenses SET status = ?, admin_notes = CONCAT(IFNULL(admin_notes, ''), '\n\nAdmin Response: ', ?), resolved_at = ? WHERE id = ?");
                 $resolved_at = ($status == 'resolved') ? date('Y-m-d H:i:s') : null;
                 
                 $result = $stmt->execute([$status, $admin_response, $resolved_at, $offense_id]);
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['error'] = "Failed to update offense status. No rows were affected.";
                 }
                 
-                header("Location: offense_logs.php");
+                header("Location: offenses.php");
                 exit;
                 break;
         }
@@ -111,8 +111,8 @@ $stmt = $pdo->query("SELECT r.id, CONCAT(b.name, ' - Room ', r.room_number) as r
     ORDER BY b.name, r.room_number");
 $rooms = $stmt->fetchAll();
 
-// Check if complaint_id column exists in offense_logs table
-$check_column = $pdo->query("SHOW COLUMNS FROM offense_logs LIKE 'complaint_id'");
+// Check if complaint_id column exists in offenses table
+$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
 $has_complaint_id = $check_column->rowCount() > 0;
 
 // Get offense logs with student details and complaint info (if column exists)
@@ -124,12 +124,12 @@ if ($has_complaint_id) {
         b.name as building_name,
         c.subject as complaint_subject,
         c.id as complaint_id
-        FROM offense_logs ol
+        FROM offenses ol
         JOIN students s ON ol.student_id = s.id
         LEFT JOIN rooms r ON s.room_id = r.id
         LEFT JOIN buildings b ON r.building_id = b.id
         LEFT JOIN complaints c ON ol.complaint_id = c.id
-        ORDER BY ol.reported_at DESC");
+        ORDER BY ol.created_at DESC");
 } else {
     $stmt = $pdo->query("SELECT ol.*, 
         CONCAT(s.first_name, ' ', s.last_name) as student_name,
@@ -138,11 +138,11 @@ if ($has_complaint_id) {
         b.name as building_name,
         NULL as complaint_subject,
         NULL as complaint_id
-        FROM offense_logs ol
+        FROM offenses ol
         JOIN students s ON ol.student_id = s.id
         LEFT JOIN rooms r ON s.room_id = r.id
         LEFT JOIN buildings b ON r.building_id = b.id
-        ORDER BY ol.reported_at DESC");
+        ORDER BY ol.created_at DESC");
 }
 $offenses = $stmt->fetchAll();
 ?>
@@ -342,7 +342,7 @@ $offenses = $stmt->fetchAll();
                                 <?php endif; ?>
                             </td>
                             <td><?php echo htmlspecialchars($offense['reported_by']); ?></td>
-                            <td><?php echo date('M j, Y g:i A', strtotime($offense['reported_at'])); ?></td>
+                            <td><?php echo date('M j, Y g:i A', strtotime($offense['created_at'])); ?></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewOffenseModal" 
                                         data-offense='<?php echo json_encode($offense); ?>'>
@@ -449,7 +449,7 @@ $offenses = $stmt->fetchAll();
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Action Taken</label>
-                        <textarea name="action_taken" class="form-control" rows="3"></textarea>
+                        <textarea name="admin_notes" class="form-control" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -534,7 +534,7 @@ window.addEventListener('load', function() {
                     <p><strong>Severity:</strong> <span class="badge bg-${offense.severity === 'critical' ? 'danger' : (offense.severity === 'major' ? 'warning' : 'info')}">${offense.severity}</span></p>
                     <p><strong>Status:</strong> <span class="badge bg-${offense.status === 'resolved' ? 'success' : (offense.status === 'escalated' ? 'danger' : 'warning')}">${offense.status}</span></p>
                     <p><strong>Reported By:</strong> ${offense.reported_by}</p>
-                    <p><strong>Date:</strong> ${new Date(offense.reported_at).toLocaleString()}</p>
+                    <p><strong>Date:</strong> ${new Date(offense.created_at).toLocaleString()}</p>
                     <p><strong>Source:</strong> ${offense.complaint_id ? '<span class="badge bg-info"><i class="fas fa-comment-alt"></i> Converted from Complaint</span>' : '<span class="badge bg-secondary"><i class="fas fa-plus"></i> Direct Entry</span>'}</p>
                 </div>
             </div>
@@ -553,11 +553,11 @@ window.addEventListener('load', function() {
                     <p>${offense.description}</p>
                 </div>
             </div>
-            ${offense.action_taken ? `
+            ${offense.admin_notes ? `
             <div class="row mt-3">
                 <div class="col-12">
                     <h6>Action Taken</h6>
-                    <p>${offense.action_taken}</p>
+                    <p>${offense.admin_notes}</p>
                 </div>
             </div>
             ` : ''}

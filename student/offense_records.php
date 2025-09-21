@@ -22,7 +22,7 @@ try {
     }
     
     // Get student's offense records
-    $stmt = $pdo->prepare("SELECT * FROM offense_logs WHERE student_id = ? ORDER BY reported_at DESC");
+    $stmt = $pdo->prepare("SELECT * FROM offenses WHERE student_id = ? ORDER BY created_at DESC");
     $stmt->execute([$_SESSION['user_id']]);
     $offenses = $stmt->fetchAll();
     
@@ -197,8 +197,8 @@ try {
                                     <tr>
                                         <td>
                                             <?php 
-                                            if ($offense['reported_at']) {
-                                                echo date('M j, Y g:i A', strtotime($offense['reported_at']));
+                                            if ($offense['created_at']) {
+                                                echo date('M j, Y g:i A', strtotime($offense['created_at']));
                                             } else {
                                                 echo '<span class="text-muted">Date not available</span>';
                                             }
@@ -218,7 +218,7 @@ try {
                                                 case 'major':
                                                     $severity_class = 'bg-danger';
                                                     break;
-                                                case 'critical':
+                                                case 'severe':
                                                     $severity_class = 'bg-dark';
                                                     break;
                                             }
@@ -279,7 +279,7 @@ try {
                         <ul>
                             <li><span class="badge bg-warning">Minor</span> - First-time violations, warnings</li>
                             <li><span class="badge bg-danger">Major</span> - Repeated violations, serious misconduct</li>
-                            <li><span class="badge bg-dark">Critical</span> - Severe violations, possible disciplinary action</li>
+                            <li><span class="badge bg-dark">Severe</span> - Severe violations, possible disciplinary action</li>
                         </ul>
                         
                         <h6><i class="fas fa-clock text-warning"></i> Status Meanings</h6>

@@ -60,7 +60,7 @@ try {
     $stmt->execute([$_SESSION['user_id']]);
     $pending_complaints = $stmt->fetchColumn();
     
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offense_logs WHERE student_id = ?");
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offenses WHERE student_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $total_offenses = $stmt->fetchColumn();
 }

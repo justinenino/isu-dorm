@@ -62,83 +62,20 @@
             }
         }
 
-        // Prevent automatic scrolling to top when clicking sidebar links
-        (function() {
-            // Save scroll positions for both main page and sidebar
-            let scrollTimeout;
-            function saveScrollPositions() {
-                const mainScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                const sidebarScrollPosition = document.getElementById('sidebar').scrollTop;
+        // Handle sidebar navigation
+        document.addEventListener('click', function(e) {
+            const sidebarLink = e.target.closest('.sidebar-menu a');
+            if (sidebarLink && sidebarLink.hasAttribute('data-page')) {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                localStorage.setItem('mainScrollPosition', mainScrollPosition);
-                localStorage.setItem('sidebarScrollPosition', sidebarScrollPosition);
-            }
-            
-            // Save main page scroll position
-            window.addEventListener('scroll', function() {
-                clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(() => {
-                    const mainScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
-                    localStorage.setItem('mainScrollPosition', mainScrollPosition);
-                }, 10);
-            });
-            
-            // Save sidebar scroll position
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar) {
-                sidebar.addEventListener('scroll', function() {
-                    clearTimeout(scrollTimeout);
-                    scrollTimeout = setTimeout(() => {
-                        const sidebarScrollPosition = sidebar.scrollTop;
-                        localStorage.setItem('sidebarScrollPosition', sidebarScrollPosition);
-                    }, 10);
-                });
-            }
-            
-            // Handle sidebar navigation with scroll position preservation
-            document.addEventListener('click', function(e) {
-                const sidebarLink = e.target.closest('.sidebar-menu a');
-                if (sidebarLink && sidebarLink.hasAttribute('data-page')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Save current scroll positions
-                    saveScrollPositions();
-                    
-                    // Navigate to the page
-                    const page = sidebarLink.getAttribute('data-page');
-                    if (page) {
-                        window.location.href = page;
-                    }
-                }
-            });
-            
-            // Restore scroll positions
-            function restoreScrollPositions() {
-                const savedMainPosition = localStorage.getItem('mainScrollPosition');
-                const savedSidebarPosition = localStorage.getItem('sidebarScrollPosition');
-                
-                if (savedMainPosition && parseInt(savedMainPosition) > 0) {
-                    window.scrollTo(0, parseInt(savedMainPosition));
-                }
-                
-                if (savedSidebarPosition && parseInt(savedSidebarPosition) > 0) {
-                    const sidebar = document.getElementById('sidebar');
-                    if (sidebar) {
-                        sidebar.scrollTop = parseInt(savedSidebarPosition);
-                    }
+                // Navigate to the page
+                const page = sidebarLink.getAttribute('data-page');
+                if (page) {
+                    window.location.href = page;
                 }
             }
-            
-            // Multiple restoration attempts
-            document.addEventListener('DOMContentLoaded', restoreScrollPositions);
-            window.addEventListener('load', restoreScrollPositions);
-            
-            // Additional restoration after delays
-            setTimeout(restoreScrollPositions, 100);
-            setTimeout(restoreScrollPositions, 300);
-            setTimeout(restoreScrollPositions, 600);
-        })();
+        });
     </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 define('DB_HOST', 'localhost');
 define('DB_USERNAME', 'root');
 define('DB_PASSWORD', '');
-define('DB_NAME', 'dormitory_management');
+define('DB_NAME', 'u260113372_dormitory_db');
 
 // Create connection
 function getConnection() {

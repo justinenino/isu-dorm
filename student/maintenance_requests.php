@@ -218,12 +218,12 @@ if (!empty($priority_filter)) {
 }
 
 if (!empty($date_from)) {
-    $where_conditions[] = "DATE(mr.submitted_at) >= ?";
+    $where_conditions[] = "DATE(mr.created_at) >= ?";
     $params[] = $date_from;
 }
 
 if (!empty($date_to)) {
-    $where_conditions[] = "DATE(mr.submitted_at) <= ?";
+    $where_conditions[] = "DATE(mr.created_at) <= ?";
     $params[] = $date_to;
 }
 
@@ -236,7 +236,7 @@ $stmt = $pdo->prepare("SELECT mr.*,
     LEFT JOIN rooms r ON mr.room_id = r.id
     LEFT JOIN buildings b ON r.building_id = b.id
     WHERE $where_clause
-    ORDER BY mr.submitted_at DESC");
+    ORDER BY mr.created_at DESC");
 $stmt->execute($params);
 $maintenance_requests = $stmt->fetchAll();
 ?>
@@ -555,9 +555,9 @@ $maintenance_requests = $stmt->fetchAll();
                                 <td>
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i>
-                                        <?php echo date('M j, Y', strtotime($request['submitted_at'])); ?><br>
+                                        <?php echo date('M j, Y', strtotime($request['created_at'])); ?><br>
                                         <i class="fas fa-clock"></i>
-                                        <?php echo date('g:i A', strtotime($request['submitted_at'])); ?>
+                                        <?php echo date('g:i A', strtotime($request['created_at'])); ?>
                                     </small>
                                 </td>
                                 <td>
@@ -1096,7 +1096,7 @@ function initializeDataTable() {
                     <p><strong>Title:</strong> ${request.title || 'N/A'}</p>
                     <p><strong>Priority:</strong> <span class="${priorityClass}"><i class="${priorityIcon}"></i> ${(request.priority || 'unknown').charAt(0).toUpperCase() + (request.priority || 'unknown').slice(1)}</span></p>
                     <p><strong>Status:</strong> <span class="${statusClass}"><i class="${statusIcon}"></i> ${(request.status || 'unknown').replace('_', ' ').charAt(0).toUpperCase() + (request.status || 'unknown').replace('_', ' ').slice(1)}</span></p>
-                    <p><strong>Submitted:</strong> ${request.submitted_at ? new Date(request.submitted_at).toLocaleString() : 'N/A'}</p>
+                    <p><strong>Submitted:</strong> ${request.created_at ? new Date(request.created_at).toLocaleString() : 'N/A'}</p>
                     ${request.room_number ? `<p><strong>Room:</strong> ${request.building_name || ''} - ${request.room_number}</p>` : ''}
                 </div>
                 <div class="col-md-6">
@@ -1155,7 +1155,7 @@ function testModal() {
         description: 'This is a test request to verify the modal is working.',
         priority: 'medium',
         status: 'pending',
-        submitted_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         assigned_to: 'Test Admin',
         room_number: '101',
         building_name: 'Building A'
