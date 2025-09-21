@@ -35,8 +35,18 @@ CREATE TABLE IF NOT EXISTS `students` (
   `date_of_birth` date NOT NULL,
   `gender` varchar(10) NOT NULL,
   `contact_number` varchar(15) NOT NULL,
+  `mobile_number` varchar(15) NOT NULL,
   `email` varchar(100) NOT NULL,
   `address` text NOT NULL,
+  `province` varchar(50) NOT NULL,
+  `municipality` varchar(50) NOT NULL,
+  `barangay` varchar(50) NOT NULL,
+  `street_purok` varchar(100) NOT NULL,
+  `facebook_link` varchar(255) DEFAULT NULL,
+  `attachment_file` varchar(255) DEFAULT NULL,
+  `guardian_name` varchar(100) NOT NULL,
+  `guardian_mobile` varchar(15) NOT NULL,
+  `guardian_relationship` varchar(50) NOT NULL,
   `emergency_contact_name` varchar(100) NOT NULL,
   `emergency_contact_number` varchar(15) NOT NULL,
   `course` varchar(100) NOT NULL,
@@ -390,6 +400,11 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
 -- Insert sample admin
 INSERT INTO `admins` (`username`, `password`, `first_name`, `last_name`, `email`, `role`) VALUES
 ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System', 'Administrator', 'admin@isu.edu.ph', 'super_admin');
+
+-- Sample students data
+INSERT INTO `students` (`school_id`, `learner_reference_number`, `first_name`, `middle_name`, `last_name`, `date_of_birth`, `gender`, `contact_number`, `mobile_number`, `email`, `address`, `province`, `municipality`, `barangay`, `street_purok`, `facebook_link`, `attachment_file`, `guardian_name`, `guardian_mobile`, `guardian_relationship`, `emergency_contact_name`, `emergency_contact_number`, `course`, `year_level`, `application_status`) VALUES
+('2024-001', 'LRN001', 'John', 'Doe', 'Smith', '2000-01-15', 'Male', '09123456789', '09123456789', 'john.smith@student.isu.edu.ph', '123 Main Street', 'Isabela', 'Echague', 'Barangay 1', 'Purok 1', 'https://facebook.com/johnsmith', 'attachment1.pdf', 'Jane Smith', '09123456788', 'Mother', 'Jane Smith', '09123456788', 'Computer Science', '3rd Year', 'approved'),
+('2024-002', 'LRN002', 'Maria', 'Santos', 'Garcia', '1999-05-20', 'Female', '09123456790', '09123456790', 'maria.garcia@student.isu.edu.ph', '456 Oak Avenue', 'Isabela', 'Echague', 'Barangay 2', 'Purok 2', 'https://facebook.com/mariagarcia', 'attachment2.pdf', 'Pedro Garcia', '09123456791', 'Father', 'Pedro Garcia', '09123456791', 'Information Technology', '4th Year', 'pending');
 
 -- Insert sample building
 INSERT INTO `buildings` (`name`, `description`, `total_floors`) VALUES
