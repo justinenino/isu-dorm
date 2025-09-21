@@ -19,8 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 // If room_id is provided, log offense for all students in that room
                 if ($room_id && $room_id != '') {
-                    // Get all students in the room
-                    $stmt = $pdo->prepare("SELECT id FROM students WHERE room_id = ? AND application_status = 'approved'");
+                    // Get all active students in the room
+                    $stmt = $pdo->prepare("SELECT id FROM students WHERE room_id = ? AND application_status = 'approved' AND is_deleted = 0 AND is_active = 1");
                     $stmt->execute([$room_id]);
                     $room_students = $stmt->fetchAll();
                     
@@ -97,8 +97,8 @@ include 'includes/header.php';
 
 $pdo = getConnection();
 
-// Get all students for dropdown
-$stmt = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name, ' (', school_id, ')') as name FROM students WHERE application_status = 'approved' ORDER BY first_name");
+// Get all active students for dropdown
+$stmt = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name, ' (', school_id, ')') as name FROM students WHERE application_status = 'approved' AND is_deleted = 0 AND is_active = 1 ORDER BY first_name");
 $students = $stmt->fetchAll();
 
 // Get all rooms for dropdown

@@ -10,21 +10,23 @@ if (!isset($_GET['student_id'])) {
 $student_id = $_GET['student_id'];
 $pdo = getConnection();
 
-// Get student information
+// Get student information (only if student is active)
 $stmt = $pdo->prepare("SELECT 
     CONCAT(s.first_name, ' ', s.last_name) as student_name,
     s.school_id,
     r.room_number,
-    b.name as building_name
+    b.name as building_name,
+    s.is_deleted,
+    s.is_active
     FROM students s
     LEFT JOIN rooms r ON s.room_id = r.id
     LEFT JOIN buildings b ON r.building_id = b.id
-    WHERE s.id = ?");
+    WHERE s.id = ? AND s.is_deleted = 0 AND s.is_active = 1");
 $stmt->execute([$student_id]);
 $student = $stmt->fetch();
 
 if (!$student) {
-    echo '<div class="alert alert-danger">Student not found.</div>';
+    echo '<div class="alert alert-danger">Student not found or is inactive/archived.</div>';
     exit;
 }
 

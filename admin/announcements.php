@@ -601,33 +601,37 @@ try {
                                         </td>
                                         <td><?php echo htmlspecialchars($announcement['created_by_name']); ?></td>
                                         <td class="action-column">
-                                            <div class="dropdown">
-                                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" 
-                                                        id="dropdownMenuButton<?php echo $announcement['id']; ?>" 
-                                                        data-bs-toggle="dropdown" 
-                                                        data-bs-auto-close="true"
-                                                        aria-expanded="false" 
-                                                        title="Actions">
-                                                    <i class="fas fa-cog"></i>
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <!-- Standalone Comment Button -->
+                                                <button class="btn btn-sm btn-outline-info" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#commentsModal" 
+                                                        data-announcement='<?php echo htmlspecialchars(json_encode($announcement)); ?>'
+                                                        title="View Comments">
+                                                    <i class="fas fa-comments"></i>
+                                                    <span class="badge bg-info ms-1"><?php echo $announcement['comment_count'] ?? 0; ?></span>
                                                 </button>
-                                                <ul class="dropdown-menu dropdown-menu-end" 
-                                                    aria-labelledby="dropdownMenuButton<?php echo $announcement['id']; ?>">
-                                                    <li>
-                                                        <a class="dropdown-item" href="#" 
-                                                           data-bs-toggle="modal" 
-                                                           data-bs-target="#viewAnnouncementModal" 
-                                                           data-announcement='<?php echo htmlspecialchars(json_encode($announcement)); ?>'>
-                                                            <i class="fas fa-eye me-2"></i>View
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a class="dropdown-item" href="#" 
-                                                           data-bs-toggle="modal" 
-                                                           data-bs-target="#commentsModal" 
-                                                           data-announcement='<?php echo htmlspecialchars(json_encode($announcement)); ?>'>
-                                                            <i class="fas fa-comments me-2"></i>Comments (<?php echo $announcement['comment_count'] ?? 0; ?>)
-                                                        </a>
-                                                    </li>
+                                                
+                                                <!-- Actions Dropdown -->
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" 
+                                                            id="dropdownMenuButton<?php echo $announcement['id']; ?>" 
+                                                            data-bs-toggle="dropdown" 
+                                                            data-bs-auto-close="true"
+                                                            aria-expanded="false" 
+                                                            title="More Actions">
+                                                        <i class="fas fa-cog"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end" 
+                                                        aria-labelledby="dropdownMenuButton<?php echo $announcement['id']; ?>">
+                                                        <li>
+                                                            <a class="dropdown-item" href="#" 
+                                                               data-bs-toggle="modal" 
+                                                               data-bs-target="#viewAnnouncementModal" 
+                                                               data-announcement='<?php echo htmlspecialchars(json_encode($announcement)); ?>'>
+                                                                <i class="fas fa-eye me-2"></i>View
+                                                            </a>
+                                                        </li>
                                                     <?php if ($has_analytics): ?>
                                                         <li>
                                                             <a class="dropdown-item" href="#" 
@@ -977,36 +981,55 @@ $(document).ready(function() {
         return new bootstrap.Dropdown(dropdownToggleEl);
     });
     
-    // Fallback click handler for dropdowns
+    // Enhanced dropdown functionality
     $('.dropdown-toggle').on('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
         
         var $dropdown = $(this).closest('.dropdown');
         var $menu = $dropdown.find('.dropdown-menu');
+        var isOpen = $menu.hasClass('show');
         
-        // Close other dropdowns
-        $('.dropdown-menu').not($menu).removeClass('show');
+        // Close all dropdowns first
+        $('.dropdown-menu').removeClass('show');
+        $('.dropdown-toggle').attr('aria-expanded', 'false');
         
-        // Toggle current dropdown
-        $menu.toggleClass('show');
-        
-        // Ensure dropdown is positioned correctly
-        if ($menu.hasClass('show')) {
-            // Reset any previous positioning
-            $menu.removeClass('dropdown-menu-up');
+        // If this dropdown wasn't open, open it
+        if (!isOpen) {
+            $menu.addClass('show');
+            $(this).attr('aria-expanded', 'true');
             
-            // Check if there's enough space below
-            var dropdownRect = $dropdown[0].getBoundingClientRect();
-            var menuHeight = $menu.outerHeight();
-            var spaceBelow = window.innerHeight - dropdownRect.bottom;
-            
-            // If not enough space below, position above
-            if (spaceBelow < menuHeight && dropdownRect.top > menuHeight) {
-                $menu.addClass('dropdown-menu-up');
-            }
+            // Position dropdown correctly
+            positionDropdown($dropdown, $menu);
         }
     });
+    
+    // Function to position dropdown correctly
+    function positionDropdown($dropdown, $menu) {
+        // Reset positioning classes
+        $menu.removeClass('dropdown-menu-up dropdown-menu-left dropdown-menu-right');
+        
+        // Get positions
+        var dropdownRect = $dropdown[0].getBoundingClientRect();
+        var menuHeight = $menu.outerHeight();
+        var menuWidth = $menu.outerWidth();
+        var spaceBelow = window.innerHeight - dropdownRect.bottom;
+        var spaceAbove = dropdownRect.top;
+        var spaceRight = window.innerWidth - dropdownRect.right;
+        var spaceLeft = dropdownRect.left;
+        
+        // Position vertically
+        if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+            $menu.addClass('dropdown-menu-up');
+        }
+        
+        // Position horizontally
+        if (spaceRight < menuWidth && spaceLeft > menuWidth) {
+            $menu.addClass('dropdown-menu-left');
+        } else if (spaceLeft < menuWidth && spaceRight > menuWidth) {
+            $menu.addClass('dropdown-menu-right');
+        }
+    }
     
     // Close dropdowns when clicking outside
     $(document).on('click', function(e) {
@@ -1414,6 +1437,20 @@ $(document).ready(function() {
     $(window).on('scroll', function() {
         closeAllDropdowns();
     });
+    
+    // Close dropdowns when window is resized
+    $(window).on('resize', function() {
+        closeAllDropdowns();
+    });
+    
+    // Enhanced scroll handling for better UX
+    var scrollTimer;
+    $(window).on('scroll', function() {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function() {
+            closeAllDropdowns();
+        }, 150);
+    });
 });
 
 function deleteAnnouncement(id) {
@@ -1696,6 +1733,51 @@ function closeAllDropdowns() {
     margin-bottom: 0.125rem !important;
 }
 
+.dropdown-menu-left {
+    right: auto !important;
+    left: 0 !important;
+}
+
+.dropdown-menu-right {
+    left: auto !important;
+    right: 0 !important;
+}
+
+/* Comment button styling */
+.btn-outline-info {
+    border-color: #17a2b8;
+    color: #17a2b8;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-info:hover {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+}
+
+.btn-outline-info:focus {
+    box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
+}
+
+/* Action column improvements */
+.action-column {
+    min-width: 120px;
+    white-space: nowrap;
+}
+
+.action-column .d-flex {
+    flex-wrap: nowrap;
+}
+
+/* Badge styling in comment button */
+.btn .badge {
+    font-size: 0.7rem;
+    padding: 0.25em 0.5em;
+}
+
 /* Table responsive improvements */
 .table-responsive {
     overflow-x: auto;
@@ -1911,6 +1993,20 @@ function closeAllDropdowns() {
         padding: 8px 12px;
         font-size: 0.8rem;
     }
+    
+    .action-column {
+        min-width: 100px;
+    }
+    
+    .action-column .d-flex {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .action-column .btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1925,6 +2021,25 @@ function closeAllDropdowns() {
     .dropdown-item {
         padding: 6px 10px;
         font-size: 0.75rem;
+    }
+    
+    .action-column {
+        min-width: 80px;
+    }
+    
+    .action-column .d-flex {
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+    
+    .action-column .btn {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .action-column .btn .badge {
+        font-size: 0.6rem;
+        padding: 0.2em 0.4em;
     }
     
     /* Hide more columns on mobile */

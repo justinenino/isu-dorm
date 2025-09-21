@@ -64,12 +64,15 @@ if (!empty($date_filter)) {
     $params[] = $date_filter;
 }
 
+// Always include active student filter
+$where_conditions[] = "s.is_deleted = 0 AND s.is_active = 1";
+
 $where_clause = '';
 if (!empty($where_conditions)) {
     $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
 }
 
-// Get student location logs with student details
+// Get student location logs with student details (only active students)
 $query = "SELECT sll.*, 
     CONCAT(s.first_name, ' ', s.last_name) as student_name,
     s.school_id,
@@ -86,7 +89,7 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $location_logs = $stmt->fetchAll();
 
-// Get current student locations (latest entry for each student)
+// Get current student locations (latest entry for each active student)
 $current_locations_query = "SELECT sll.*, 
     CONCAT(s.first_name, ' ', s.last_name) as student_name,
     s.school_id,
@@ -96,7 +99,8 @@ $current_locations_query = "SELECT sll.*,
     JOIN students s ON sll.student_id = s.id
     LEFT JOIN rooms r ON s.room_id = r.id
     LEFT JOIN buildings b ON r.building_id = b.id
-    WHERE sll.timestamp = (
+    WHERE s.is_deleted = 0 AND s.is_active = 1
+    AND sll.timestamp = (
         SELECT MAX(timestamp) 
         FROM student_location_logs 
         WHERE student_id = sll.student_id
@@ -105,18 +109,20 @@ $current_locations_query = "SELECT sll.*,
 
 $current_locations = $pdo->query($current_locations_query)->fetchAll();
 
-// Get statistics
+// Get statistics (only for active students)
 $stmt = $pdo->query("SELECT 
     COUNT(*) as total_logs,
     SUM(CASE WHEN location_status = 'inside_dormitory' THEN 1 ELSE 0 END) as inside_dormitory,
     SUM(CASE WHEN location_status = 'outside_campus' THEN 1 ELSE 0 END) as outside_campus,
     SUM(CASE WHEN location_status = 'in_class' THEN 1 ELSE 0 END) as in_class
-    FROM student_location_logs 
-    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+    FROM student_location_logs sll
+    JOIN students s ON sll.student_id = s.id
+    WHERE s.is_deleted = 0 AND s.is_active = 1
+    AND timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
 $today_stats = $stmt->fetch();
 
-// Get all students for location update
-$students = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name) as name, school_id FROM students WHERE application_status = 'approved' ORDER BY first_name")->fetchAll();
+// Get all active students for location update
+$students = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name) as name, school_id FROM students WHERE application_status = 'approved' AND is_deleted = 0 AND is_active = 1 ORDER BY first_name")->fetchAll();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
