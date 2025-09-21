@@ -1,42 +1,39 @@
 -- =====================================================
--- ISU DORMITORY MANAGEMENT SYSTEM - COMPLETE DATABASE SCHEMA
+-- ISU DORMITORY MANAGEMENT SYSTEM - HOSTINGER COMPATIBLE SCHEMA
 -- =====================================================
--- This file contains all tables needed for the dormitory management system
--- Import this into phpMyAdmin on Hostinger to set up the complete database
-
--- Create database (uncomment if needed)
--- CREATE DATABASE IF NOT EXISTS dormitory_management;
--- USE dormitory_management;
+-- This file is specifically designed for Hostinger's MySQL environment
+-- Handles common Hostinger compatibility issues
 
 -- =====================================================
 -- 1. ADMINISTRATORS TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS `admins` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL UNIQUE,
+  `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
   `first_name` varchar(50) NOT NULL,
   `last_name` varchar(50) NOT NULL,
   `email` varchar(100) NOT NULL,
-  `role` enum('super_admin','admin','staff') DEFAULT 'admin',
+  `role` varchar(20) DEFAULT 'admin',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` tinyint(1) DEFAULT 1,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 2. STUDENTS TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS `students` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `school_id` varchar(20) NOT NULL UNIQUE,
-  `learner_reference_number` varchar(20) NOT NULL UNIQUE,
+  `school_id` varchar(20) NOT NULL,
+  `learner_reference_number` varchar(20) NOT NULL,
   `first_name` varchar(50) NOT NULL,
   `middle_name` varchar(50) DEFAULT NULL,
   `last_name` varchar(50) NOT NULL,
   `date_of_birth` date NOT NULL,
-  `gender` enum('male','female') NOT NULL,
+  `gender` varchar(10) NOT NULL,
   `contact_number` varchar(15) NOT NULL,
   `email` varchar(100) NOT NULL,
   `address` text NOT NULL,
@@ -46,19 +43,19 @@ CREATE TABLE IF NOT EXISTS `students` (
   `year_level` varchar(20) NOT NULL,
   `room_id` int(11) DEFAULT NULL,
   `bed_space_id` int(11) DEFAULT NULL,
-  `application_status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `application_status` varchar(20) DEFAULT 'pending',
   `application_date` timestamp DEFAULT CURRENT_TIMESTAMP,
   `approved_at` timestamp NULL DEFAULT NULL,
   `approved_by` int(11) DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_school_id` (`school_id`),
-  KEY `idx_learner_ref` (`learner_reference_number`),
+  UNIQUE KEY `school_id` (`school_id`),
+  UNIQUE KEY `learner_reference_number` (`learner_reference_number`),
   KEY `idx_room_id` (`room_id`),
   KEY `idx_bed_space_id` (`bed_space_id`),
   KEY `idx_application_status` (`application_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 3. BUILDINGS TABLE
@@ -71,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `buildings` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 4. ROOMS TABLE
@@ -83,8 +80,8 @@ CREATE TABLE IF NOT EXISTS `rooms` (
   `floor_number` int(11) NOT NULL,
   `capacity` int(11) NOT NULL DEFAULT 1,
   `occupied` int(11) NOT NULL DEFAULT 0,
-  `room_type` enum('single','double','triple','quad') DEFAULT 'double',
-  `status` enum('available','occupied','maintenance','unavailable') DEFAULT 'available',
+  `room_type` varchar(20) DEFAULT 'double',
+  `status` varchar(20) DEFAULT 'available',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -92,7 +89,7 @@ CREATE TABLE IF NOT EXISTS `rooms` (
   KEY `idx_building_id` (`building_id`),
   KEY `idx_floor_number` (`floor_number`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 5. BED SPACES TABLE
@@ -101,14 +98,14 @@ CREATE TABLE IF NOT EXISTS `bed_spaces` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `room_id` int(11) NOT NULL,
   `bed_number` int(11) NOT NULL,
-  `status` enum('available','occupied','maintenance') DEFAULT 'available',
+  `status` varchar(20) DEFAULT 'available',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_bed` (`room_id`, `bed_number`),
   KEY `idx_room_id` (`room_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 6. ANNOUNCEMENTS TABLE
@@ -117,9 +114,9 @@ CREATE TABLE IF NOT EXISTS `announcements` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(200) NOT NULL,
   `content` text NOT NULL,
-  `status` enum('draft','published','archived') DEFAULT 'draft',
-  `priority` enum('low','medium','high','urgent') DEFAULT 'medium',
-  `target_audience` enum('all','students','admins') DEFAULT 'all',
+  `status` varchar(20) DEFAULT 'draft',
+  `priority` varchar(20) DEFAULT 'medium',
+  `target_audience` varchar(20) DEFAULT 'all',
   `created_by` int(11) NOT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -131,7 +128,7 @@ CREATE TABLE IF NOT EXISTS `announcements` (
   KEY `idx_priority` (`priority`),
   KEY `idx_created_by` (`created_by`),
   KEY `idx_expires_at` (`expires_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 7. ANNOUNCEMENT LIKES TABLE
@@ -145,7 +142,7 @@ CREATE TABLE IF NOT EXISTS `announcement_likes` (
   UNIQUE KEY `unique_like` (`announcement_id`, `student_id`),
   KEY `idx_announcement_id` (`announcement_id`),
   KEY `idx_student_id` (`student_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 8. ANNOUNCEMENT COMMENTS TABLE
@@ -162,7 +159,7 @@ CREATE TABLE IF NOT EXISTS `announcement_comments` (
   KEY `idx_announcement_id` (`announcement_id`),
   KEY `idx_student_id` (`student_id`),
   KEY `idx_admin_id` (`admin_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 9. ANNOUNCEMENT INTERACTIONS TABLE
@@ -171,13 +168,13 @@ CREATE TABLE IF NOT EXISTS `announcement_interactions` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `announcement_id` int(11) NOT NULL,
   `student_id` int(11) NOT NULL,
-  `interaction_type` enum('acknowledge','read','view') NOT NULL,
+  `interaction_type` varchar(20) NOT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_interaction` (`announcement_id`, `student_id`, `interaction_type`),
   KEY `idx_announcement_id` (`announcement_id`),
   KEY `idx_student_id` (`student_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 10. ANNOUNCEMENT VIEWS TABLE
@@ -192,7 +189,7 @@ CREATE TABLE IF NOT EXISTS `announcement_views` (
   PRIMARY KEY (`id`),
   KEY `idx_announcement_id` (`announcement_id`),
   KEY `idx_student_id` (`student_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 11. COMPLAINTS TABLE
@@ -202,8 +199,8 @@ CREATE TABLE IF NOT EXISTS `complaints` (
   `student_id` int(11) NOT NULL,
   `subject` varchar(200) NOT NULL,
   `description` text NOT NULL,
-  `status` enum('pending','in_progress','resolved','closed') DEFAULT 'pending',
-  `priority` enum('low','medium','high','urgent') DEFAULT 'medium',
+  `status` varchar(20) DEFAULT 'pending',
+  `priority` varchar(20) DEFAULT 'medium',
   `assigned_to` int(11) DEFAULT NULL,
   `admin_response` text DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -214,7 +211,7 @@ CREATE TABLE IF NOT EXISTS `complaints` (
   KEY `idx_status` (`status`),
   KEY `idx_priority` (`priority`),
   KEY `idx_assigned_to` (`assigned_to`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 12. OFFENSES TABLE (FIXED - was offense_logs)
@@ -224,8 +221,8 @@ CREATE TABLE IF NOT EXISTS `offenses` (
   `student_id` int(11) NOT NULL,
   `offense_type` varchar(100) NOT NULL,
   `description` text NOT NULL,
-  `severity` enum('minor','major','critical') NOT NULL,
-  `status` enum('pending','resolved','escalated') DEFAULT 'pending',
+  `severity` varchar(20) NOT NULL,
+  `status` varchar(20) DEFAULT 'pending',
   `admin_notes` text DEFAULT NULL,
   `reported_by` varchar(100) NOT NULL,
   `complaint_id` int(11) DEFAULT NULL,
@@ -238,7 +235,7 @@ CREATE TABLE IF NOT EXISTS `offenses` (
   KEY `idx_severity` (`severity`),
   KEY `idx_status` (`status`),
   KEY `idx_complaint_id` (`complaint_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 13. MAINTENANCE REQUESTS TABLE
@@ -249,8 +246,8 @@ CREATE TABLE IF NOT EXISTS `maintenance_requests` (
   `room_id` int(11) NOT NULL,
   `title` varchar(200) NOT NULL,
   `description` text NOT NULL,
-  `priority` enum('low','medium','high','urgent') DEFAULT 'medium',
-  `status` enum('pending','in_progress','completed','cancelled') DEFAULT 'pending',
+  `priority` varchar(20) DEFAULT 'medium',
+  `status` varchar(20) DEFAULT 'pending',
   `assigned_to` int(11) DEFAULT NULL,
   `admin_notes` text DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -262,7 +259,7 @@ CREATE TABLE IF NOT EXISTS `maintenance_requests` (
   KEY `idx_status` (`status`),
   KEY `idx_priority` (`priority`),
   KEY `idx_assigned_to` (`assigned_to`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 14. ROOM CHANGE REQUESTS TABLE
@@ -273,7 +270,7 @@ CREATE TABLE IF NOT EXISTS `room_change_requests` (
   `current_room_id` int(11) NOT NULL,
   `requested_room_id` int(11) NOT NULL,
   `reason` text NOT NULL,
-  `status` enum('pending','approved','rejected','cancelled') DEFAULT 'pending',
+  `status` varchar(20) DEFAULT 'pending',
   `admin_response` text DEFAULT NULL,
   `processed_by` int(11) DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
@@ -285,7 +282,7 @@ CREATE TABLE IF NOT EXISTS `room_change_requests` (
   KEY `idx_requested_room_id` (`requested_room_id`),
   KEY `idx_status` (`status`),
   KEY `idx_processed_by` (`processed_by`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 15. VISITOR LOGS TABLE
@@ -305,7 +302,7 @@ CREATE TABLE IF NOT EXISTS `visitor_logs` (
   KEY `idx_student_id` (`student_id`),
   KEY `idx_time_in` (`time_in`),
   KEY `idx_time_out` (`time_out`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 16. STUDENT LOCATION LOGS TABLE
@@ -313,14 +310,14 @@ CREATE TABLE IF NOT EXISTS `visitor_logs` (
 CREATE TABLE IF NOT EXISTS `student_location_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `student_id` int(11) NOT NULL,
-  `location_status` enum('in','out','away','emergency') NOT NULL,
+  `location_status` varchar(20) NOT NULL,
   `timestamp` timestamp DEFAULT CURRENT_TIMESTAMP,
   `notes` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_student_id` (`student_id`),
   KEY `idx_timestamp` (`timestamp`),
   KEY `idx_location_status` (`location_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 17. BIOMETRIC FILES TABLE
@@ -333,12 +330,12 @@ CREATE TABLE IF NOT EXISTS `biometric_files` (
   `file_type` varchar(50) NOT NULL,
   `file_size` int(11) NOT NULL,
   `upload_date` timestamp DEFAULT CURRENT_TIMESTAMP,
-  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `status` varchar(20) DEFAULT 'pending',
   PRIMARY KEY (`id`),
   KEY `idx_student_id` (`student_id`),
   KEY `idx_upload_date` (`upload_date`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 18. POLICIES TABLE
@@ -349,13 +346,13 @@ CREATE TABLE IF NOT EXISTS `policies` (
   `content` text NOT NULL,
   `offense_descriptions` text DEFAULT NULL,
   `created_by` int(11) NOT NULL,
-  `status` enum('active','inactive','draft') DEFAULT 'active',
+  `status` varchar(20) DEFAULT 'active',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_created_by` (`created_by`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 19. FORM SUBMISSIONS TABLE
@@ -370,24 +367,75 @@ CREATE TABLE IF NOT EXISTS `form_submissions` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_action` (`action`),
   KEY `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
 -- 20. SYSTEM SETTINGS TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS `system_settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `setting_key` varchar(100) NOT NULL UNIQUE,
+  `setting_key` varchar(100) NOT NULL,
   `setting_value` text NOT NULL,
   `description` text DEFAULT NULL,
   `updated_by` int(11) DEFAULT NULL,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_setting_key` (`setting_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `setting_key` (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =====================================================
--- FOREIGN KEY CONSTRAINTS
+-- SAMPLE DATA INSERTION
+-- =====================================================
+
+-- Insert sample admin
+INSERT INTO `admins` (`username`, `password`, `first_name`, `last_name`, `email`, `role`) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System', 'Administrator', 'admin@isu.edu.ph', 'super_admin');
+
+-- Insert sample building
+INSERT INTO `buildings` (`name`, `description`, `total_floors`) VALUES
+('Building A', 'Main dormitory building for male students', 3),
+('Building B', 'Main dormitory building for female students', 3);
+
+-- Insert sample rooms
+INSERT INTO `rooms` (`building_id`, `room_number`, `floor_number`, `capacity`, `room_type`) VALUES
+(1, '101', 1, 2, 'double'),
+(1, '102', 1, 2, 'double'),
+(1, '201', 2, 2, 'double'),
+(1, '202', 2, 2, 'double'),
+(2, '101', 1, 2, 'double'),
+(2, '102', 1, 2, 'double'),
+(2, '201', 2, 2, 'double'),
+(2, '202', 2, 2, 'double');
+
+-- Insert sample bed spaces
+INSERT INTO `bed_spaces` (`room_id`, `bed_number`) VALUES
+(1, 1), (1, 2),
+(2, 1), (2, 2),
+(3, 1), (3, 2),
+(4, 1), (4, 2),
+(5, 1), (5, 2),
+(6, 1), (6, 2),
+(7, 1), (7, 2),
+(8, 1), (8, 2);
+
+-- Insert sample announcement
+INSERT INTO `announcements` (`title`, `content`, `status`, `priority`, `created_by`) VALUES
+('Welcome to ISU Dormitory Management System', 'Welcome to the new dormitory management system. Please familiarize yourself with the features and policies.', 'published', 'high', 1);
+
+-- Insert sample policy
+INSERT INTO `policies` (`title`, `content`, `offense_descriptions`, `created_by`) VALUES
+('General Dormitory Rules', 'All students must follow the general dormitory rules and regulations.', 'Curfew violations, noise violations, unauthorized visitors, smoking/vaping, alcohol/drugs, fighting, theft, disruptive behavior', 1);
+
+-- Insert sample system settings
+INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
+('curfew_time', '22:00', 'Dormitory curfew time'),
+('visitor_hours_start', '08:00', 'Visitor hours start time'),
+('visitor_hours_end', '20:00', 'Visitor hours end time'),
+('max_visitors_per_student', '2', 'Maximum number of visitors per student'),
+('announcement_expiry_days', '30', 'Number of days before announcements expire');
+
+-- =====================================================
+-- ADD FOREIGN KEY CONSTRAINTS (AFTER ALL TABLES EXIST)
 -- =====================================================
 
 -- Students table foreign keys
@@ -477,74 +525,9 @@ ALTER TABLE `system_settings`
   ADD CONSTRAINT `fk_system_settings_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `admins` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- =====================================================
--- SAMPLE DATA INSERTION
--- =====================================================
-
--- Insert sample admin
-INSERT INTO `admins` (`username`, `password`, `first_name`, `last_name`, `email`, `role`) VALUES
-('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System', 'Administrator', 'admin@isu.edu.ph', 'super_admin');
-
--- Insert sample building
-INSERT INTO `buildings` (`name`, `description`, `total_floors`) VALUES
-('Building A', 'Main dormitory building for male students', 3),
-('Building B', 'Main dormitory building for female students', 3);
-
--- Insert sample rooms
-INSERT INTO `rooms` (`building_id`, `room_number`, `floor_number`, `capacity`, `room_type`) VALUES
-(1, '101', 1, 2, 'double'),
-(1, '102', 1, 2, 'double'),
-(1, '201', 2, 2, 'double'),
-(1, '202', 2, 2, 'double'),
-(2, '101', 1, 2, 'double'),
-(2, '102', 1, 2, 'double'),
-(2, '201', 2, 2, 'double'),
-(2, '202', 2, 2, 'double');
-
--- Insert sample bed spaces
-INSERT INTO `bed_spaces` (`room_id`, `bed_number`) VALUES
-(1, 1), (1, 2),
-(2, 1), (2, 2),
-(3, 1), (3, 2),
-(4, 1), (4, 2),
-(5, 1), (5, 2),
-(6, 1), (6, 2),
-(7, 1), (7, 2),
-(8, 1), (8, 2);
-
--- Insert sample announcement
-INSERT INTO `announcements` (`title`, `content`, `status`, `priority`, `created_by`) VALUES
-('Welcome to ISU Dormitory Management System', 'Welcome to the new dormitory management system. Please familiarize yourself with the features and policies.', 'published', 'high', 1);
-
--- Insert sample policy
-INSERT INTO `policies` (`title`, `content`, `offense_descriptions`, `created_by`) VALUES
-('General Dormitory Rules', 'All students must follow the general dormitory rules and regulations.', 'Curfew violations, noise violations, unauthorized visitors, smoking/vaping, alcohol/drugs, fighting, theft, disruptive behavior', 1);
-
--- Insert sample system settings
-INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
-('curfew_time', '22:00', 'Dormitory curfew time'),
-('visitor_hours_start', '08:00', 'Visitor hours start time'),
-('visitor_hours_end', '20:00', 'Visitor hours end time'),
-('max_visitors_per_student', '2', 'Maximum number of visitors per student'),
-('announcement_expiry_days', '30', 'Number of days before announcements expire');
-
--- =====================================================
--- INDEXES FOR PERFORMANCE
--- =====================================================
-
--- Additional indexes for better performance
-CREATE INDEX `idx_students_name` ON `students` (`first_name`, `last_name`);
-CREATE INDEX `idx_announcements_status_priority` ON `announcements` (`status`, `priority`);
-CREATE INDEX `idx_offenses_student_status` ON `offenses` (`student_id`, `status`);
-CREATE INDEX `idx_complaints_student_status` ON `complaints` (`student_id`, `status`);
-CREATE INDEX `idx_maintenance_requests_status_priority` ON `maintenance_requests` (`status`, `priority`);
-CREATE INDEX `idx_room_change_requests_status` ON `room_change_requests` (`status`);
-CREATE INDEX `idx_visitor_logs_student_time` ON `visitor_logs` (`student_id`, `time_in`);
-CREATE INDEX `idx_student_location_logs_student_time` ON `student_location_logs` (`student_id`, `timestamp`);
-
--- =====================================================
 -- COMPLETION MESSAGE
 -- =====================================================
--- Database schema created successfully!
+-- Hostinger-compatible database schema created successfully!
 -- All 20 tables with proper relationships and constraints
 -- Sample data inserted for testing
 -- Ready for deployment to Hostinger

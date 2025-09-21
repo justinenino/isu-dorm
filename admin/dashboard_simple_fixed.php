@@ -2,7 +2,7 @@
 $page_title = 'Dashboard';
 include 'includes/header.php';
 
-// Get statistics with error handling
+// Get statistics with comprehensive error handling
 $pdo = getConnection();
 
 // Initialize default values
@@ -35,7 +35,13 @@ $pending_complaints = 0;
 $current_visitors = 0;
 $total_announcements = 0;
 
+// Database error flag
+$db_error = false;
+
 try {
+    // Test basic connection
+    $pdo->query("SELECT 1");
+    
     // Room occupancy statistics
     $stmt = $pdo->query("SELECT 
         COUNT(*) as total_rooms,
@@ -66,38 +72,64 @@ try {
         FROM students");
     $student_stats = $stmt->fetch();
 
-    // Pending items
-    $stmt = $pdo->query("SELECT COUNT(*) as pending_offenses FROM offenses WHERE status = 'pending'");
-    $pending_offenses = $stmt->fetchColumn();
+    // Pending items - with table existence checks
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as pending_offenses FROM offenses WHERE status = 'pending'");
+        $pending_offenses = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Offenses table query failed: " . $e->getMessage());
+    }
 
-    $stmt = $pdo->query("SELECT COUNT(*) as pending_maintenance FROM maintenance_requests WHERE status = 'pending'");
-    $pending_maintenance = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as pending_maintenance FROM maintenance_requests WHERE status = 'pending'");
+        $pending_maintenance = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Maintenance requests table query failed: " . $e->getMessage());
+    }
 
-    $stmt = $pdo->query("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE status = 'pending'");
-    $pending_room_requests = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE status = 'pending'");
+        $pending_room_requests = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Room change requests table query failed: " . $e->getMessage());
+    }
 
-    $stmt = $pdo->query("SELECT COUNT(*) as pending_complaints FROM complaints WHERE status = 'pending'");
-    $pending_complaints = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as pending_complaints FROM complaints WHERE status = 'pending'");
+        $pending_complaints = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Complaints table query failed: " . $e->getMessage());
+    }
 
     // Additional statistics
-    $stmt = $pdo->query("SELECT COUNT(*) as total_visitors FROM visitor_logs WHERE time_out IS NULL");
-    $current_visitors = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as total_visitors FROM visitor_logs WHERE time_out IS NULL");
+        $current_visitors = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Visitor logs table query failed: " . $e->getMessage());
+    }
 
-    $stmt = $pdo->query("SELECT COUNT(*) as total_announcements FROM announcements WHERE status = 'published'");
-    $total_announcements = $stmt->fetchColumn();
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as total_announcements FROM announcements WHERE status = 'published'");
+        $total_announcements = $stmt->fetchColumn();
+    } catch (Exception $e) {
+        error_log("Announcements table query failed: " . $e->getMessage());
+    }
 
 } catch (Exception $e) {
-    // If there's an error, use default values
-    error_log("Dashboard error: " . $e->getMessage());
-    
-    // Show error message to user
-    echo '<div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="fas fa-exclamation-triangle"></i>
-        <strong>Database Error:</strong> Some data may not be displayed correctly. Error: ' . htmlspecialchars($e->getMessage()) . '
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>';
+    $db_error = true;
+    error_log("Dashboard database error: " . $e->getMessage());
 }
 ?>
+
+<!-- Database Error Alert -->
+<?php if ($db_error): ?>
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>Database Error:</strong> Some data may not be displayed correctly. Please check your database connection and table structure.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
 
 <!-- Welcome Section -->
 <div class="row mb-4">
@@ -106,7 +138,7 @@ try {
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <h2 class="mb-2">Welcome back, <?php echo $_SESSION['username']; ?>!</h2>
+                        <h2 class="mb-2">Welcome back, <?php echo htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?>!</h2>
                         <p class="mb-0">Here's what's happening in your dormitory management system today.</p>
                     </div>
                     <div class="col-md-4 text-end">
@@ -126,16 +158,16 @@ try {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h3 class="mb-1 text-primary"><?php echo $room_stats['available_rooms']; ?></h3>
+                            <h3 class="mb-1 text-primary"><?php echo $room_stats['available_rooms'] ?? 0; ?></h3>
                             <p class="mb-0 text-muted">Available Rooms</p>
-                            <small class="text-success">of <?php echo $room_stats['total_rooms']; ?> total</small>
+                            <small class="text-success">of <?php echo $room_stats['total_rooms'] ?? 0; ?> total</small>
                         </div>
                         <div class="stats-icon-modern">
                             <i class="fas fa-bed text-primary"></i>
                         </div>
                     </div>
                     <div class="progress mt-2" style="height: 4px;">
-                        <div class="progress-bar bg-primary" style="width: <?php echo $room_stats['total_rooms'] > 0 ? ($room_stats['available_rooms'] / $room_stats['total_rooms']) * 100 : 0; ?>%"></div>
+                        <div class="progress-bar bg-primary" style="width: <?php echo ($room_stats['total_rooms'] ?? 0) > 0 ? (($room_stats['available_rooms'] ?? 0) / ($room_stats['total_rooms'] ?? 1)) * 100 : 0; ?>%"></div>
                     </div>
                 </div>
             </div>
@@ -148,16 +180,16 @@ try {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h3 class="mb-1 text-success"><?php echo $student_stats['approved_students']; ?></h3>
+                            <h3 class="mb-1 text-success"><?php echo $student_stats['approved_students'] ?? 0; ?></h3>
                             <p class="mb-0 text-muted">Active Students</p>
-                            <small class="text-warning"><?php echo $student_stats['pending_applications']; ?> pending</small>
+                            <small class="text-warning"><?php echo $student_stats['pending_applications'] ?? 0; ?> pending</small>
                         </div>
                         <div class="stats-icon-modern">
                             <i class="fas fa-user-graduate text-success"></i>
                         </div>
                     </div>
                     <div class="progress mt-2" style="height: 4px;">
-                        <div class="progress-bar bg-success" style="width: <?php echo $student_stats['total_students'] > 0 ? ($student_stats['approved_students'] / $student_stats['total_students']) * 100 : 0; ?>%"></div>
+                        <div class="progress-bar bg-success" style="width: <?php echo ($student_stats['total_students'] ?? 0) > 0 ? (($student_stats['approved_students'] ?? 0) / ($student_stats['total_students'] ?? 1)) * 100 : 0; ?>%"></div>
                     </div>
                 </div>
             </div>
@@ -217,9 +249,9 @@ try {
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h3 class="mb-1 text-secondary"><?php echo $bed_stats['occupied_beds']; ?></h3>
+                            <h3 class="mb-1 text-secondary"><?php echo $bed_stats['occupied_beds'] ?? 0; ?></h3>
                             <p class="mb-0 text-muted">Occupied Beds</p>
-                            <small class="text-muted">of <?php echo $bed_stats['total_beds']; ?> total</small>
+                            <small class="text-muted">of <?php echo $bed_stats['total_beds'] ?? 0; ?> total</small>
                         </div>
                         <div class="stats-icon-modern">
                             <i class="fas fa-bed text-secondary"></i>
@@ -328,13 +360,13 @@ try {
                 <div class="row">
                     <div class="col-md-3 text-center">
                         <div class="border rounded p-3">
-                            <h4 class="text-success"><?php echo $room_stats['total_rooms']; ?></h4>
+                            <h4 class="text-success"><?php echo $room_stats['total_rooms'] ?? 0; ?></h4>
                             <p class="mb-0">Total Rooms</p>
                         </div>
                     </div>
                     <div class="col-md-3 text-center">
                         <div class="border rounded p-3">
-                            <h4 class="text-info"><?php echo $bed_stats['total_beds']; ?></h4>
+                            <h4 class="text-info"><?php echo $bed_stats['total_beds'] ?? 0; ?></h4>
                             <p class="mb-0">Total Bed Spaces</p>
                         </div>
                     </div>

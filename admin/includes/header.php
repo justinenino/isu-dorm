@@ -645,3 +645,4 @@ requireAdmin();
 
         <!-- Content Wrapper -->
         <div class="content-wrapper">
+            <!-- Main content will be loaded here -->

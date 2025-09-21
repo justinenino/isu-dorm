@@ -111,9 +111,47 @@ $stmt = $pdo->query("SELECT r.id, CONCAT(b.name, ' - Room ', r.room_number) as r
     ORDER BY b.name, r.room_number");
 $rooms = $stmt->fetchAll();
 
-// Check if complaint_id column exists in offenses table
-$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
-$has_complaint_id = $check_column->rowCount() > 0;
+// Check if offenses table exists, if not create it
+try {
+    $check_table = $pdo->query("SHOW TABLES LIKE 'offenses'");
+    $table_exists = $check_table->rowCount() > 0;
+    
+    if (!$table_exists) {
+        // Create offenses table if it doesn't exist
+        $create_table_sql = "
+        CREATE TABLE IF NOT EXISTS `offenses` (
+          `id` int(11) NOT NULL AUTO_INCREMENT,
+          `student_id` int(11) NOT NULL,
+          `offense_type` varchar(100) NOT NULL,
+          `description` text NOT NULL,
+          `severity` enum('minor','major','critical') NOT NULL,
+          `status` enum('pending','resolved','escalated') DEFAULT 'pending',
+          `admin_notes` text DEFAULT NULL,
+          `reported_by` varchar(100) NOT NULL,
+          `complaint_id` int(11) DEFAULT NULL,
+          `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          `resolved_at` timestamp NULL DEFAULT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_student_id` (`student_id`),
+          KEY `idx_offense_type` (`offense_type`),
+          KEY `idx_severity` (`severity`),
+          KEY `idx_status` (`status`),
+          KEY `idx_complaint_id` (`complaint_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        
+        $pdo->exec($create_table_sql);
+    }
+    
+    // Check if complaint_id column exists in offenses table
+    $check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
+    $has_complaint_id = $check_column->rowCount() > 0;
+    
+} catch (PDOException $e) {
+    // If there's an error, assume table doesn't exist and set defaults
+    $has_complaint_id = false;
+    error_log("Error checking offenses table: " . $e->getMessage());
+}
 
 // Get offense logs with student details and complaint info (if column exists)
 if ($has_complaint_id) {

@@ -2,77 +2,113 @@
 $page_title = 'Dashboard';
 include 'includes/header.php';
 
-// Get student information and statistics using optimized queries
+// Get student information and statistics with error handling
 $pdo = getConnection();
 
+// Initialize default values
+$student = [
+    'first_name' => 'Student',
+    'last_name' => 'User',
+    'full_name' => 'Student User',
+    'school_id' => 'N/A',
+    'email' => 'N/A',
+    'mobile_number' => 'N/A',
+    'gender' => 'N/A',
+    'date_of_birth' => 'N/A',
+    'room_id' => null,
+    'room_number' => null,
+    'floor_number' => null,
+    'building_name' => null,
+    'bed_number' => null
+];
+
+$recent_announcements = [];
+$pending_maintenance = 0;
+$pending_room_requests = 0;
+$pending_complaints = 0;
+$total_offenses = 0;
+
+$db_error = false;
+
 try {
-    // Get student dashboard data using stored procedure
-    $stmt = $pdo->prepare("CALL GetStudentDashboardData(?)");
-    $stmt->execute([$_SESSION['user_id']]);
-    $student = $stmt->fetch();
+    // Test basic connection
+    $pdo->query("SELECT 1");
     
-    // Get recent announcements with optimized query
-    $stmt = $pdo->prepare("SELECT * FROM announcements 
-        WHERE status = 'published' 
-        AND (is_archived IS NULL OR is_archived = 0)
-        AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY COALESCE(is_pinned, 0) DESC, COALESCE(published_at, created_at) DESC 
-        LIMIT 3");
-    $stmt->execute();
-    $recent_announcements = $stmt->fetchAll();
+    // Get student data
+    if (isset($_SESSION['user_id'])) {
+        $stmt = $pdo->prepare("SELECT s.*, 
+            CONCAT(s.first_name, ' ', IFNULL(s.middle_name, ''), ' ', s.last_name) as full_name,
+            r.room_number, r.floor_number, b.name as building_name, bs.bed_number
+            FROM students s
+            LEFT JOIN rooms r ON s.room_id = r.id
+            LEFT JOIN buildings b ON r.building_id = b.id
+            LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
+            WHERE s.id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $student_data = $stmt->fetch();
+        
+        if ($student_data) {
+            $student = $student_data;
+        }
+    }
     
-    // Get student statistics using stored procedure
-    $stmt = $pdo->prepare("CALL GetStudentStatistics(?)");
-    $stmt->execute([$_SESSION['user_id']]);
-    $stats = $stmt->fetch();
+    // Get recent announcements
+    try {
+        $stmt = $pdo->query("SELECT * FROM announcements WHERE status = 'published' ORDER BY created_at DESC LIMIT 3");
+        $recent_announcements = $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("Announcements query failed: " . $e->getMessage());
+    }
     
-    $pending_maintenance = $stats['pending_maintenance_requests'] ?? 0;
-    $pending_room_requests = $stats['pending_room_requests'] ?? 0;
-    $pending_complaints = $stats['pending_complaints'] ?? 0;
-    $total_offenses = $stats['total_offenses'] ?? 0;
+    // Get student statistics
+    if (isset($_SESSION['user_id'])) {
+        try {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as pending_maintenance FROM maintenance_requests WHERE student_id = ? AND status = 'pending'");
+            $stmt->execute([$_SESSION['user_id']]);
+            $pending_maintenance = $stmt->fetchColumn();
+        } catch (Exception $e) {
+            error_log("Maintenance requests query failed: " . $e->getMessage());
+        }
+        
+        try {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE student_id = ? AND status = 'pending'");
+            $stmt->execute([$_SESSION['user_id']]);
+            $pending_room_requests = $stmt->fetchColumn();
+        } catch (Exception $e) {
+            error_log("Room change requests query failed: " . $e->getMessage());
+        }
+        
+        try {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as pending_complaints FROM complaints WHERE student_id = ? AND status = 'pending'");
+            $stmt->execute([$_SESSION['user_id']]);
+            $pending_complaints = $stmt->fetchColumn();
+        } catch (Exception $e) {
+            error_log("Complaints query failed: " . $e->getMessage());
+        }
+        
+        try {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offenses WHERE student_id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+            $total_offenses = $stmt->fetchColumn();
+        } catch (Exception $e) {
+            error_log("Offenses query failed: " . $e->getMessage());
+        }
+    }
     
 } catch (Exception $e) {
-    error_log("Dashboard error: " . $e->getMessage());
-    
-    // Show error message to user
-    echo '<div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="fas fa-exclamation-triangle"></i>
-        <strong>Database Error:</strong> Some data may not be displayed correctly. Error: ' . htmlspecialchars($e->getMessage()) . '
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>';
-    
-    // Fallback to basic queries if stored procedures fail
-    $stmt = $pdo->prepare("SELECT s.*, 
-        CONCAT(s.first_name, ' ', IFNULL(s.middle_name, ''), ' ', s.last_name) as full_name,
-        r.room_number, r.floor_number, b.name as building_name, bs.bed_number
-        FROM students s
-        LEFT JOIN rooms r ON s.room_id = r.id
-        LEFT JOIN buildings b ON r.building_id = b.id
-        LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
-        WHERE s.id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $student = $stmt->fetch();
-    
-    $stmt = $pdo->query("SELECT * FROM announcements WHERE status = 'published' ORDER BY created_at DESC LIMIT 3");
-    $recent_announcements = $stmt->fetchAll();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_maintenance FROM maintenance_requests WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_maintenance = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_room_requests = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_complaints FROM complaints WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_complaints = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offenses WHERE student_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $total_offenses = $stmt->fetchColumn();
+    $db_error = true;
+    error_log("Student dashboard database error: " . $e->getMessage());
 }
 ?>
+
+<!-- Database Error Alert -->
+<?php if ($db_error): ?>
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>Database Error:</strong> Some data may not be displayed correctly. Please check your database connection.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
 
 <!-- Welcome Section -->
 <div class="row mb-4">
@@ -94,7 +130,7 @@ try {
                             <div class="col-md-6">
                                 <p><strong>Mobile:</strong> <?php echo htmlspecialchars($student['mobile_number']); ?></p>
                                 <p><strong>Gender:</strong> <?php echo htmlspecialchars($student['gender']); ?></p>
-                                <p><strong>Date of Birth:</strong> <?php echo date('M j, Y', strtotime($student['date_of_birth'])); ?></p>
+                                <p><strong>Date of Birth:</strong> <?php echo $student['date_of_birth'] != 'N/A' ? date('M j, Y', strtotime($student['date_of_birth'])) : 'N/A'; ?></p>
                             </div>
                         </div>
                     </div>
