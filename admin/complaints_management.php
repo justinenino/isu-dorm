@@ -182,7 +182,7 @@ $stmt = $pdo->query("SELECT c.*,
     JOIN students s ON c.student_id = s.id
     LEFT JOIN rooms r ON s.room_id = r.id
     LEFT JOIN buildings b ON r.building_id = b.id
-    ORDER BY c.submitted_at DESC");
+    ORDER BY c.created_at DESC");
 $complaints = $stmt->fetchAll();
 ?>
 
@@ -277,7 +277,7 @@ $complaints = $stmt->fetchAll();
                                 ?>
                                 <span class="<?php echo $status_class; ?>"><?php echo ucfirst($complaint['status']); ?></span>
                             </td>
-                            <td><?php echo date('M j, Y g:i A', strtotime($complaint['submitted_at'])); ?></td>
+                            <td><?php echo date('M j, Y g:i A', strtotime($complaint['created_at'])); ?></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewComplaintModal" 
                                         data-complaint='<?php echo json_encode($complaint); ?>'>
@@ -450,7 +450,7 @@ $(document).ready(function() {
             '</div>' +
             '<div class="row mt-3">' +
             '<div class="col-md-6"><strong>Status:</strong> <span class="badge bg-warning">' + complaint.status + '</span></div>' +
-            '<div class="col-md-6"><strong>Submitted:</strong> ' + new Date(complaint.submitted_at).toLocaleString() + '</div>' +
+            '<div class="col-md-6"><strong>Submitted:</strong> ' + new Date(complaint.created_at).toLocaleString() + '</div>' +
             '</div>';
         
         if (complaint.admin_response) {

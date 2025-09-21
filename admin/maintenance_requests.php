@@ -71,7 +71,7 @@ try {
         JOIN students s ON mr.student_id = s.id
         LEFT JOIN rooms r ON mr.room_id = r.id
         LEFT JOIN buildings b ON r.building_id = b.id
-        ORDER BY mr.submitted_at DESC
+        ORDER BY mr.created_at DESC
         LIMIT :limit OFFSET :offset");
     $stmt->bindValue(':limit', intval($items_per_page), PDO::PARAM_INT);
     $stmt->bindValue(':offset', intval($offset), PDO::PARAM_INT);
@@ -90,7 +90,7 @@ try {
         JOIN students s ON mr.student_id = s.id
         LEFT JOIN rooms r ON mr.room_id = r.id
         LEFT JOIN buildings b ON r.building_id = b.id
-        ORDER BY mr.submitted_at DESC");
+        ORDER BY mr.created_at DESC");
     $all_maintenance_requests = $all_requests_stmt->fetchAll();
     
     // Get buildings for filter
@@ -322,7 +322,7 @@ try {
                                 <td>
                                     <?php echo $request['assigned_to'] ? htmlspecialchars($request['assigned_to']) : '<span class="text-muted">Not assigned</span>'; ?>
                                 </td>
-                                <td><?php echo date('M j, Y g:i A', strtotime($request['submitted_at'])); ?></td>
+                                <td><?php echo date('M j, Y g:i A', strtotime($request['created_at'])); ?></td>
                                 <td>
                                     <?php if ($request['completed_at']): ?>
                                         <?php echo date('M j, Y g:i A', strtotime($request['completed_at'])); ?>
@@ -811,7 +811,7 @@ $(document).ready(function() {
                     <p><strong>Title:</strong> ${request.title}</p>
                     <p><strong>Priority:</strong> <span class="${priorityClass}">${request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}</span></p>
                     <p><strong>Status:</strong> <span class="${statusClass}">${request.status.replace('_', ' ').charAt(0).toUpperCase() + request.status.replace('_', ' ').slice(1)}</span></p>
-                    <p><strong>Submitted:</strong> ${new Date(request.submitted_at).toLocaleString()}</p>
+                    <p><strong>Submitted:</strong> ${new Date(request.created_at).toLocaleString()}</p>
                     ${request.completed_at ? `<p><strong>Completed:</strong> ${new Date(request.completed_at).toLocaleString()}</p>` : ''}
                 </div>
             </div>
