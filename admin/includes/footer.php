@@ -1,255 +1,144 @@
-    </div> <!-- End of main-content -->
+        </div>
+    </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Custom JavaScript -->
     <script>
-        // Sidebar toggle functionality
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            
-            sidebar.classList.toggle('show');
-            
-            if (sidebar.classList.contains('show')) {
-                mainContent.classList.add('expanded');
-            } else {
-                mainContent.classList.remove('expanded');
-            }
+        // Sidebar toggle for mobile
+        document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('show');
         });
 
-        // Close sidebar on mobile when clicking outside
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            
-            if (window.innerWidth < 1024 && 
-                !sidebar.contains(event.target) && 
-                !sidebarToggle.contains(event.target)) {
-                sidebar.classList.remove('show');
-                document.getElementById('mainContent').classList.remove('expanded');
-            }
-        });
 
-        // Auto-hide sidebar on mobile when clicking a link
-        const sidebarLinks = document.querySelectorAll('.sidebar .nav-link');
-        sidebarLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                if (window.innerWidth < 1024) {
-                    document.getElementById('sidebar').classList.remove('show');
-                    document.getElementById('mainContent').classList.remove('expanded');
+        // Initialize DataTables
+        $(document).ready(function() {
+            $('.data-table').DataTable({
+                responsive: true,
+                pageLength: 10,
+                language: {
+                    search: "Search:",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    paginate: {
+                        first: "First",
+                        last: "Last",
+                        next: "Next",
+                        previous: "Previous"
+                    }
                 }
             });
-        });
-
-        // Add active class to current page in navigation
-        const currentPage = window.location.pathname;
-        const navLinks = document.querySelectorAll('.sidebar .nav-link');
-        
-        navLinks.forEach(link => {
-            if (link.getAttribute('href') && currentPage.includes(link.getAttribute('href'))) {
-                link.classList.add('active');
-            }
-        });
-
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // Initialize popovers
-        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
-            return new bootstrap.Popover(popoverTriggerEl);
         });
 
         // Auto-hide alerts after 5 seconds
         setTimeout(function() {
-            const alerts = document.querySelectorAll('.alert');
-            alerts.forEach(alert => {
-                if (alert.classList.contains('alert-dismissible')) {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                }
-            });
+            $('.alert').fadeOut('slow');
         }, 5000);
 
         // Confirm delete actions
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('btn-delete') || e.target.closest('.btn-delete')) {
-                if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
-                    e.preventDefault();
-                    return false;
-                }
-            }
-        });
+        function confirmDelete(message = 'Are you sure you want to delete this item?') {
+            return confirm(message);
+        }
 
-        // Form validation enhancement
-        document.addEventListener('DOMContentLoaded', function() {
-            const forms = document.querySelectorAll('form[data-validate]');
-            forms.forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    if (!form.checkValidity()) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-                    form.classList.add('was-validated');
+        // Show loading spinner
+        function showLoading() {
+            const loading = document.createElement('div');
+            loading.id = 'loading-spinner';
+            loading.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center';
+            loading.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            loading.style.zIndex = '9999';
+            loading.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Loading...</span></div>';
+            document.body.appendChild(loading);
+        }
+
+        // Hide loading spinner
+        function hideLoading() {
+            const loading = document.getElementById('loading-spinner');
+            if (loading) {
+                loading.remove();
+            }
+        }
+
+        // Prevent automatic scrolling to top when clicking sidebar links
+        (function() {
+            // Save scroll positions for both main page and sidebar
+            let scrollTimeout;
+            function saveScrollPositions() {
+                const mainScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+                const sidebarScrollPosition = document.getElementById('sidebar').scrollTop;
+                
+                localStorage.setItem('mainScrollPosition', mainScrollPosition);
+                localStorage.setItem('sidebarScrollPosition', sidebarScrollPosition);
+            }
+            
+            // Save main page scroll position
+            window.addEventListener('scroll', function() {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    const mainScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+                    localStorage.setItem('mainScrollPosition', mainScrollPosition);
+                }, 10);
+            });
+            
+            // Save sidebar scroll position
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) {
+                sidebar.addEventListener('scroll', function() {
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(() => {
+                        const sidebarScrollPosition = sidebar.scrollTop;
+                        localStorage.setItem('sidebarScrollPosition', sidebarScrollPosition);
+                    }, 10);
                 });
-            });
-        });
-
-        // Auto-save form data (for long forms)
-        const autoSaveForms = document.querySelectorAll('form[data-autosave]');
-        autoSaveForms.forEach(form => {
-            const formData = new FormData(form);
-            const formKey = form.getAttribute('data-autosave') || 'form_' + Math.random().toString(36).substr(2, 9);
-            
-            // Save form data every 30 seconds
-            setInterval(() => {
-                const currentData = new FormData(form);
-                const data = {};
-                for (let [key, value] of currentData.entries()) {
-                    data[key] = value;
-                }
-                localStorage.setItem(formKey, JSON.stringify(data));
-            }, 30000);
-            
-            // Restore form data on page load
-            const savedData = localStorage.getItem(formKey);
-            if (savedData) {
-                try {
-                    const data = JSON.parse(savedData);
-                    Object.keys(data).forEach(key => {
-                        const field = form.querySelector(`[name="${key}"]`);
-                        if (field) {
-                            field.value = data[key];
-                        }
-                    });
-                } catch (e) {
-                    console.error('Error restoring form data:', e);
-                }
-            }
-        });
-
-        // Print functionality
-        window.printPage = function() {
-            window.print();
-        };
-
-        // Export functionality
-        window.exportToCSV = function(tableId, filename) {
-            const table = document.getElementById(tableId);
-            if (!table) return;
-            
-            let csv = [];
-            const rows = table.querySelectorAll('tr');
-            
-            for (let i = 0; i < rows.length; i++) {
-                let row = [], cols = rows[i].querySelectorAll('td, th');
-                
-                for (let j = 0; j < cols.length; j++) {
-                    let text = cols[j].innerText.replace(/"/g, '""');
-                    row.push('"' + text + '"');
-                }
-                
-                csv.push(row.join(','));
             }
             
-            const csvContent = csv.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            
-            if (link.download !== undefined) {
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', filename || 'export.csv');
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-        };
-
-        // Search functionality
-        window.filterTable = function(inputId, tableId) {
-            const input = document.getElementById(inputId);
-            const table = document.getElementById(tableId);
-            const filter = input.value.toLowerCase();
-            const rows = table.querySelectorAll('tbody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(filter) ? '' : 'none';
-            });
-        };
-
-        // Sort table functionality
-        window.sortTable = function(tableId, columnIndex, type = 'string') {
-            const table = document.getElementById(tableId);
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            
-            rows.sort((a, b) => {
-                let aVal = a.cells[columnIndex].textContent.trim();
-                let bVal = b.cells[columnIndex].textContent.trim();
-                
-                if (type === 'number') {
-                    aVal = parseFloat(aVal) || 0;
-                    bVal = parseFloat(bVal) || 0;
-                } else if (type === 'date') {
-                    aVal = new Date(aVal);
-                    bVal = new Date(bVal);
+            // Handle sidebar navigation with scroll position preservation
+            document.addEventListener('click', function(e) {
+                const sidebarLink = e.target.closest('.sidebar-menu a');
+                if (sidebarLink && sidebarLink.hasAttribute('data-page')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Save current scroll positions
+                    saveScrollPositions();
+                    
+                    // Navigate to the page
+                    const page = sidebarLink.getAttribute('data-page');
+                    if (page) {
+                        window.location.href = page;
+                    }
                 }
-                
-                if (aVal < bVal) return -1;
-                if (aVal > bVal) return 1;
-                return 0;
             });
             
-            rows.forEach(row => tbody.appendChild(row));
-        };
-
-        // Notification system
-        window.showNotification = function(message, type = 'info', duration = 5000) {
-            const notification = document.createElement('div');
-            notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-            notification.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
+            // Restore scroll positions
+            function restoreScrollPositions() {
+                const savedMainPosition = localStorage.getItem('mainScrollPosition');
+                const savedSidebarPosition = localStorage.getItem('sidebarScrollPosition');
+                
+                if (savedMainPosition && parseInt(savedMainPosition) > 0) {
+                    window.scrollTo(0, parseInt(savedMainPosition));
                 }
-            }, duration);
-        };
-
-        // Loading state management
-        window.showLoading = function(element) {
-            if (typeof element === 'string') {
-                element = document.querySelector(element);
+                
+                if (savedSidebarPosition && parseInt(savedSidebarPosition) > 0) {
+                    const sidebar = document.getElementById('sidebar');
+                    if (sidebar) {
+                        sidebar.scrollTop = parseInt(savedSidebarPosition);
+                    }
+                }
             }
-            if (element) {
-                element.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Loading...';
-                element.disabled = true;
-            }
-        };
-
-        window.hideLoading = function(element, originalText) {
-            if (typeof element === 'string') {
-                element = document.querySelector(element);
-            }
-            if (element) {
-                element.innerHTML = originalText;
-                element.disabled = false;
-            }
-        };
+            
+            // Multiple restoration attempts
+            document.addEventListener('DOMContentLoaded', restoreScrollPositions);
+            window.addEventListener('load', restoreScrollPositions);
+            
+            // Additional restoration after delays
+            setTimeout(restoreScrollPositions, 100);
+            setTimeout(restoreScrollPositions, 300);
+            setTimeout(restoreScrollPositions, 600);
+        })();
     </script>
 </body>
 </html>

@@ -1,59 +1,60 @@
 <?php
 // Database configuration
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'isu_dorm');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USERNAME', 'root');
+define('DB_PASSWORD', '');
+define('DB_NAME', 'dormitory_management');
 
-// Create database connection
-function getDBConnection() {
+// Create connection
+function getConnection() {
     try {
-        $pdo = new PDO(
-            "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-            DB_USER,
-            DB_PASS,
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false
-            ]
-        );
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USERNAME, DB_PASSWORD);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         return $pdo;
-    } catch (PDOException $e) {
+    } catch(PDOException $e) {
         die("Connection failed: " . $e->getMessage());
     }
 }
 
-// Helper function to execute queries safely
-function executeQuery($sql, $params = []) {
-    $pdo = getDBConnection();
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    return $stmt;
+// Session configuration
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
 }
 
-// Helper function to fetch single row
-function fetchOne($sql, $params = []) {
-    $stmt = executeQuery($sql, $params);
-    return $stmt->fetch();
+// Helper functions
+function isLoggedIn() {
+    return isset($_SESSION['user_id']) && isset($_SESSION['user_type']);
 }
 
-// Helper function to fetch all rows
-function fetchAll($sql, $params = []) {
-    $stmt = executeQuery($sql, $params);
-    return $stmt->fetchAll();
+function isAdmin() {
+    return isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'admin';
 }
 
-// Helper function to get last insert ID
-function getLastInsertId() {
-    $pdo = getDBConnection();
-    return $pdo->lastInsertId();
+function isStudent() {
+    return isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'student';
 }
 
-// Helper function to check if table exists
-function tableExists($tableName) {
-    $sql = "SHOW TABLES LIKE ?";
-    $result = fetchOne($sql, [$tableName]);
-    return !empty($result);
+function requireLogin() {
+    if (!isLoggedIn()) {
+        header('Location: login.php');
+        exit();
+    }
+}
+
+function requireAdmin() {
+    requireLogin();
+    if (!isAdmin()) {
+        header('Location: login.php');
+        exit();
+    }
+}
+
+function requireStudent() {
+    requireLogin();
+    if (!isStudent()) {
+        header('Location: login.php');
+        exit();
+    }
 }
 ?>
