@@ -29,8 +29,9 @@ define('EMAIL_REPLY_TO', 'dormitoryisue2025@gmail.com');
  * @return bool Success status
  */
 function sendEmail($to, $subject, $body, $alt_body = '') {
-    if (!EMAIL_ENABLED) {
-        error_log("Email sending is disabled");
+    // Check if email is enabled
+    if (!defined('EMAIL_ENABLED') || !EMAIL_ENABLED) {
+        error_log("Email sending is disabled - EMAIL_ENABLED not set or false");
         return false;
     }
     

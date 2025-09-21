@@ -1,6 +1,11 @@
 <?php
 require_once '../config/database.php';
-require_once '../config/gmail_email.php';
+// Include email configuration - try Hostinger version first, fallback to original
+if (file_exists('../config/email_hostinger.php')) {
+    require_once '../config/email_hostinger.php';
+} else {
+    require_once '../config/gmail_email.php';
+}
 
 $success_message = '';
 $error_message = '';
@@ -51,11 +56,18 @@ if ($_POST) {
                 
                 // Send approval email notification
                 if ($student && $room) {
-                    $email_sent = sendStudentApprovalEmail($student, $room);
+                    // Try Hostinger email function first, fallback to original
+                    if (function_exists('sendStudentApprovalEmailHostinger')) {
+                        $email_sent = sendStudentApprovalEmailHostinger($student, $room);
+                    } else {
+                        $email_sent = sendStudentApprovalEmail($student, $room);
+                    }
+                    
                     if ($email_sent) {
                         $success_message = 'Student application approved successfully! Approval email sent to student.';
                     } else {
                         $success_message = 'Student application approved successfully! However, email notification failed to send.';
+                        error_log("Failed to send approval email to: " . $student['email']);
                     }
                 } else {
                     $success_message = 'Student application approved successfully!';
@@ -77,11 +89,18 @@ if ($_POST) {
         if ($stmt->execute([$student_id])) {
             // Send rejection email notification
             if ($student) {
-                $email_sent = sendStudentRejectionEmail($student);
+                // Try Hostinger email function first, fallback to original
+                if (function_exists('sendStudentRejectionEmailHostinger')) {
+                    $email_sent = sendStudentRejectionEmailHostinger($student);
+                } else {
+                    $email_sent = sendStudentRejectionEmail($student);
+                }
+                
                 if ($email_sent) {
                     $success_message = 'Student application rejected. Rejection email sent to student.';
                 } else {
                     $success_message = 'Student application rejected. However, email notification failed to send.';
+                    error_log("Failed to send rejection email to: " . $student['email']);
                 }
             } else {
                 $success_message = 'Student application rejected.';
