@@ -1,4 +1,7 @@
 <?php
+// Include timezone configuration
+require_once __DIR__ . '/timezone.php';
+
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_USERNAME', 'root');
@@ -11,6 +14,10 @@ function getConnection() {
         $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USERNAME, DB_PASSWORD);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        
+        // Set MySQL timezone to match PHP timezone
+        $pdo->exec("SET time_zone = '+08:00'");
+        
         return $pdo;
     } catch(PDOException $e) {
         die("Connection failed: " . $e->getMessage());

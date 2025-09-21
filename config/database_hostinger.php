@@ -1,4 +1,7 @@
 <?php
+// Include timezone configuration
+require_once __DIR__ . '/timezone.php';
+
 // Database configuration for Hostinger
 // Replace these values with your actual Hostinger database credentials
 
@@ -21,6 +24,10 @@ function getConnection() {
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false); // Better security
+        
+        // Set MySQL timezone to match PHP timezone
+        $pdo->exec("SET time_zone = '+08:00'");
+        
         return $pdo;
     } catch(PDOException $e) {
         // Log error for debugging

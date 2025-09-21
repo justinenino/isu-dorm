@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         } else {
             // Try student login
-            $stmt = $pdo->prepare("SELECT * FROM students WHERE school_id = ? AND learner_reference_number = ? AND application_status = 'approved'");
+            $stmt = $pdo->prepare("SELECT * FROM students WHERE school_id = ? AND learner_reference_number = ? AND application_status = 'approved' AND is_active = 1 AND is_deleted = 0");
             $stmt->execute([$username, $password]);
             $student = $stmt->fetch();
 
@@ -43,13 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: student/dashboard.php');
                 exit();
             } else {
-                // Check if student exists but not approved
+                // Check different scenarios for better error messages
                 $stmt = $pdo->prepare("SELECT * FROM students WHERE school_id = ? AND learner_reference_number = ?");
                 $stmt->execute([$username, $password]);
-                $pending_student = $stmt->fetch();
+                $check_student = $stmt->fetch();
                 
-                if ($pending_student) {
-                    $error_message = 'Your application is still pending approval. Please wait for admin approval.';
+                if ($check_student) {
+                    if ($check_student['application_status'] !== 'approved') {
+                        $error_message = 'Your application is still pending approval. Please wait for admin approval.';
+                    } elseif ($check_student['is_active'] == 0) {
+                        $error_message = 'Your account has been deactivated. Please contact the dormitory administration for assistance.';
+                    } elseif ($check_student['is_deleted'] == 1) {
+                        $error_message = 'Your account has been archived. Please contact the dormitory administration for assistance.';
+                    } else {
+                        $error_message = 'Your account is not accessible at this time. Please contact the dormitory administration.';
+                    }
                 } else {
                     $error_message = 'Invalid credentials. Please check your School ID/Username and LRN/Password.';
                 }

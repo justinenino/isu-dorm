@@ -108,21 +108,54 @@ if ($_POST) {
         } else {
             $error_message = 'Error rejecting application.';
         }
+    } elseif ($action === 'soft_delete') {
+        $admin_id = $_SESSION['user_id'] ?? null;
+        
+        $stmt = $pdo->prepare("UPDATE students SET is_deleted = 1, is_active = 0, deleted_at = NOW(), deleted_by = ? WHERE id = ?");
+        if ($stmt->execute([$admin_id, $student_id])) {
+            $success_message = 'Student application archived and access revoked successfully.';
+        } else {
+            $error_message = 'Error archiving student application.';
+        }
+    } elseif ($action === 'restore') {
+        $stmt = $pdo->prepare("UPDATE students SET is_deleted = 0, is_active = 1, deleted_at = NULL, deleted_by = NULL WHERE id = ?");
+        if ($stmt->execute([$student_id])) {
+            $success_message = 'Student application restored and access granted successfully.';
+        } else {
+            $error_message = 'Error restoring student application.';
+        }
     }
 }
 
 $page_title = 'Online Reservation Management';
 include 'includes/header.php';
 
-// Get pending applications
+// Get filter parameter
+$filter = $_GET['filter'] ?? 'active'; // active, archived, all
+
+// Get students based on filter
 $pdo = getConnection();
-$stmt = $pdo->query("SELECT s.*, 
+$where_clause = "";
+$params = [];
+
+if ($filter === 'active') {
+    $where_clause = "WHERE s.is_deleted = 0";
+} elseif ($filter === 'archived') {
+    $where_clause = "WHERE s.is_deleted = 1";
+}
+// If filter is 'all', no WHERE clause needed
+
+$stmt = $pdo->prepare("SELECT s.*, 
     CONCAT(s.first_name, ' ', IFNULL(s.middle_name, ''), ' ', s.last_name) as full_name,
-    r.room_number, r.building_id, b.name as building_name
+    r.room_number, r.building_id, b.name as building_name,
+    a.username as deleted_by_name
     FROM students s
     LEFT JOIN rooms r ON s.room_id = r.id
     LEFT JOIN buildings b ON r.building_id = b.id
-    ORDER BY s.application_status, s.created_at DESC");
+    LEFT JOIN admins a ON s.deleted_by = a.id
+    $where_clause
+    ORDER BY s.is_deleted, s.is_active, s.application_status, s.created_at DESC");
+$stmt->execute($params);
 $students = $stmt->fetchAll();
 
 // Get available rooms and bed spaces
@@ -149,30 +182,62 @@ $available_rooms = $stmt->fetchAll();
     </div>
 <?php endif; ?>
 
+<!-- Filter Buttons -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-filter"></i> Filter Students</h5>
+                    <div class="d-flex gap-2">
+                        <div class="btn-group" role="group">
+                            <a href="?filter=active" class="btn <?php echo $filter === 'active' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                                <i class="fas fa-users"></i> Active Students
+                            </a>
+                            <a href="?filter=archived" class="btn <?php echo $filter === 'archived' ? 'btn-warning' : 'btn-outline-warning'; ?>">
+                                <i class="fas fa-archive"></i> Archived Students
+                            </a>
+                            <a href="?filter=all" class="btn <?php echo $filter === 'all' ? 'btn-info' : 'btn-outline-info'; ?>">
+                                <i class="fas fa-list"></i> All Students
+                            </a>
+                        </div>
+                        <a href="archive_all_students.php" class="btn btn-warning" title="Archive All Active Students">
+                            <i class="fas fa-archive"></i> Archive All
+                        </a>
+                        <a href="restore_all_students.php" class="btn btn-success" title="Restore All Archived Students">
+                            <i class="fas fa-box-open"></i> Restore All
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="stats-card text-center" style="background: linear-gradient(135deg, #ffc107 0%, #ff8f00 100%);">
-            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'pending'; })); ?></h3>
+            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'pending' && $s['is_deleted'] == 0; })); ?></h3>
             <p class="mb-0">Pending Applications</p>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stats-card text-center" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
-            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'approved'; })); ?></h3>
+            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'approved' && $s['is_deleted'] == 0; })); ?></h3>
             <p class="mb-0">Approved Students</p>
         </div>
     </div>
     <div class="col-md-3">
         <div class="stats-card text-center" style="background: linear-gradient(135deg, #dc3545 0%, #e91e63 100%);">
-            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'rejected'; })); ?></h3>
+            <h3><?php echo count(array_filter($students, function($s) { return $s['application_status'] == 'rejected' && $s['is_deleted'] == 0; })); ?></h3>
             <p class="mb-0">Rejected Applications</p>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="stats-card text-center">
-            <h3><?php echo count($available_rooms); ?></h3>
-            <p class="mb-0">Available Rooms</p>
+        <div class="stats-card text-center" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);">
+            <h3><?php echo count(array_filter($students, function($s) { return $s['is_deleted'] == 1; })); ?></h3>
+            <p class="mb-0">Archived Students</p>
         </div>
     </div>
 </div>
@@ -191,6 +256,7 @@ $available_rooms = $stmt->fetchAll();
                         <th>Contact Details</th>
                         <th>Guardian Info</th>
                         <th>Status</th>
+                        <th>Access</th>
                         <th>Room Assignment</th>
                         <th>Applied Date</th>
                         <th>Actions</th>
@@ -198,7 +264,7 @@ $available_rooms = $stmt->fetchAll();
                 </thead>
                 <tbody>
                     <?php foreach ($students as $student): ?>
-                        <tr>
+                        <tr class="<?php echo $student['is_deleted'] == 1 ? 'archived-student' : ''; ?>">
                             <td>
                                 <strong><?php echo htmlspecialchars($student['full_name']); ?></strong><br>
                                 <small class="text-muted">
@@ -224,12 +290,29 @@ $available_rooms = $stmt->fetchAll();
                                 </small>
                             </td>
                             <td>
-                                <?php if ($student['application_status'] == 'pending'): ?>
+                                <?php if ($student['is_deleted'] == 1): ?>
+                                    <span class="badge bg-secondary status-archived">Archived</span>
+                                <?php elseif ($student['application_status'] == 'pending'): ?>
                                     <span class="badge bg-warning">Pending</span>
                                 <?php elseif ($student['application_status'] == 'approved'): ?>
                                     <span class="badge bg-success">Approved</span>
                                 <?php else: ?>
                                     <span class="badge bg-danger">Rejected</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($student['is_deleted'] == 1): ?>
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-ban"></i> Revoked
+                                    </span>
+                                <?php elseif ($student['is_active'] == 0): ?>
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-lock"></i> Inactive
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> Active
+                                    </span>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -250,13 +333,36 @@ $available_rooms = $stmt->fetchAll();
                                     <button class="btn btn-info btn-sm" onclick="viewStudent(<?php echo $student['id']; ?>)">
                                         <i class="fas fa-eye"></i> View
                                     </button>
-                                    <?php if ($student['application_status'] == 'pending'): ?>
-                                        <button class="btn btn-success btn-sm" onclick="approveStudent(<?php echo $student['id']; ?>)">
-                                            <i class="fas fa-check"></i> Approve
+                                    
+                                    <?php if ($student['is_deleted'] == 0): ?>
+                                        <!-- Active student actions -->
+                                        <?php if ($student['application_status'] == 'pending'): ?>
+                                            <button class="btn btn-success btn-sm" onclick="approveStudent(<?php echo $student['id']; ?>)">
+                                                <i class="fas fa-check"></i> Approve
+                                            </button>
+                                            <button class="btn btn-danger btn-sm" onclick="rejectStudent(<?php echo $student['id']; ?>)">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                        <?php endif; ?>
+                                        
+                                        <!-- Soft delete action -->
+                                        <button class="btn btn-warning btn-sm" onclick="softDeleteStudent(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['full_name']); ?>')" title="Archive Student">
+                                            <i class="fas fa-archive"></i> Archive
                                         </button>
-                                        <button class="btn btn-danger btn-sm" onclick="rejectStudent(<?php echo $student['id']; ?>)">
-                                            <i class="fas fa-times"></i> Reject
+                                    <?php else: ?>
+                                        <!-- Archived student actions -->
+                                        <button class="btn btn-success btn-sm" onclick="restoreStudent(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['full_name']); ?>')" title="Restore Student">
+                                            <i class="fas fa-box-open"></i> Restore
                                         </button>
+                                        
+                                        <?php if ($student['deleted_at']): ?>
+                                            <small class="text-muted d-block mt-1">
+                                                <i class="fas fa-clock"></i> Archived: <?php echo date('M j, Y', strtotime($student['deleted_at'])); ?>
+                                                <?php if ($student['deleted_by_name']): ?>
+                                                    <br><i class="fas fa-user"></i> By: <?php echo htmlspecialchars($student['deleted_by_name']); ?>
+                                                <?php endif; ?>
+                                            </small>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -376,6 +482,32 @@ function rejectStudent(studentId) {
     new bootstrap.Modal(document.getElementById('rejectionModal')).show();
 }
 
+function softDeleteStudent(studentId, studentName) {
+    if (confirm(`Are you sure you want to archive "${studentName}"?\n\nThis will:\n• Move the student to the archived section\n• Revoke their login access\n• Keep all their data intact\n\nThey will not be able to log in until restored by an admin.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = `
+            <input type="hidden" name="action" value="soft_delete">
+            <input type="hidden" name="student_id" value="${studentId}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function restoreStudent(studentId, studentName) {
+    if (confirm(`Are you sure you want to restore "${studentName}"?\n\nThis will:\n• Move the student back to the active section\n• Grant them login access\n• Allow them to use the system again`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = `
+            <input type="hidden" name="action" value="restore">
+            <input type="hidden" name="student_id" value="${studentId}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
 function loadBedSpaces() {
     const roomSelect = document.getElementById('room_select');
     const bedSpaceSelect = document.getElementById('bed_space_select');
@@ -395,5 +527,93 @@ function loadBedSpaces() {
     }
 }
 </script>
+
+<style>
+/* Soft Delete Styling */
+.archived-student {
+    background-color: #f8f9fa !important;
+    opacity: 0.7;
+}
+
+.archived-student td {
+    color: #6c757d !important;
+}
+
+.archived-student .btn {
+    opacity: 0.8;
+}
+
+.archived-student .btn:hover {
+    opacity: 1;
+}
+
+/* Filter button styling */
+.btn-group .btn {
+    border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+}
+
+.btn-group .btn:last-child {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+}
+
+/* Archive icon styling */
+.fa-archive {
+    color: #ffc107;
+}
+
+.fa-box-open {
+    color: #28a745;
+}
+
+/* Status indicators */
+.status-archived {
+    background-color: #6c757d;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Access control indicators */
+.badge i {
+    margin-right: 0.25rem;
+}
+
+.badge.bg-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+}
+
+.badge.bg-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+    color: #212529 !important;
+}
+
+.badge.bg-success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+}
+
+/* Access status styling */
+.access-revoked {
+    background-color: #f8d7da !important;
+    border-left: 4px solid #dc3545;
+}
+
+.access-inactive {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ffc107;
+}
+
+.access-active {
+    background-color: #d1edff !important;
+    border-left: 4px solid #28a745;
+}
+</style>
 
 <?php include 'includes/footer.php'; ?>
