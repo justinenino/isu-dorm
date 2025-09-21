@@ -36,6 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit;
                 break;
                 
+            case 'flush_maintenance_requests':
+                try {
+                    $pdo = getConnection();
+                    
+                    // Delete all maintenance-related data
+                    $pdo->exec("DELETE FROM maintenance_notifications");
+                    $pdo->exec("DELETE FROM maintenance_status_history");
+                    $pdo->exec("DELETE FROM maintenance_requests");
+                    
+                    $_SESSION['success'] = "All maintenance requests and related data have been deleted successfully.";
+                } catch (Exception $e) {
+                    $_SESSION['error'] = "Error: " . $e->getMessage();
+                }
+                header("Location: maintenance_requests.php");
+                exit;
+                break;
+                
         }
     }
 }
@@ -113,6 +130,9 @@ try {
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-tools"></i> Maintenance Request Management</h2>
     <div>
+        <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#flushMaintenanceModal">
+            <i class="fas fa-trash-alt"></i> Flush All Data
+        </button>
         <button class="btn btn-primary" onclick="refreshPage()">
             <i class="fas fa-sync"></i> Refresh
         </button>
@@ -873,5 +893,43 @@ $(document).ready(function() {
     }, 300000);
 });
 </script>
+
+<!-- Flush Maintenance Data Confirmation Modal -->
+<div class="modal fade" id="flushMaintenanceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Flush All Maintenance Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-warning"></i> WARNING: This action cannot be undone!</h6>
+                    <p class="mb-0">This will permanently delete:</p>
+                    <ul class="mb-0 mt-2">
+                        <li>All maintenance requests</li>
+                        <li>All maintenance notifications</li>
+                        <li>All maintenance status history</li>
+                        <li>All student feedback and completion records</li>
+                    </ul>
+                </div>
+                <p class="mb-0">Are you absolutely sure you want to flush all maintenance data?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="flush_maintenance_requests">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt"></i> Yes, Flush All Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include 'includes/footer.php'; ?>

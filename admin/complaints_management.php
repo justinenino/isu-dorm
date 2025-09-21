@@ -48,6 +48,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 exit;
                 break;
                 
+            case 'flush_complaints':
+                try {
+                    $pdo = getConnection();
+                    
+                    // Delete all complaints and related data
+                    $pdo->exec("DELETE FROM offense_logs WHERE complaint_id IS NOT NULL");
+                    $pdo->exec("DELETE FROM complaints");
+                    
+                    $_SESSION['success'] = "All complaints and related data have been deleted successfully.";
+                } catch (Exception $e) {
+                    $_SESSION['error'] = "Error: " . $e->getMessage();
+                }
+                header("Location: complaints_management.php");
+                exit;
+                break;
+                
             case 'convert_to_offense':
                 $complaint_id = $_POST['complaint_id'];
                 $student_id = $_POST['student_id'];
@@ -188,6 +204,11 @@ $complaints = $stmt->fetchAll();
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-comment-alt"></i> Complaints Management</h2>
+    <div>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#flushComplaintsModal">
+            <i class="fas fa-trash-alt"></i> Flush All Data
+        </button>
+    </div>
 </div>
 
 <?php if (!$has_complaint_id): ?>
@@ -419,6 +440,43 @@ $complaints = $stmt->fetchAll();
                     <button type="submit" class="btn btn-warning">Convert to Offense</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Flush Complaints Data Confirmation Modal -->
+<div class="modal fade" id="flushComplaintsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Flush All Complaints Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-warning"></i> WARNING: This action cannot be undone!</h6>
+                    <p class="mb-0">This will permanently delete:</p>
+                    <ul class="mb-0 mt-2">
+                        <li>All complaints</li>
+                        <li>All related offense logs</li>
+                        <li>All admin responses and resolution data</li>
+                    </ul>
+                </div>
+                <p class="mb-0">Are you absolutely sure you want to flush all complaints data?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="flush_complaints">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt"></i> Yes, Flush All Data
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

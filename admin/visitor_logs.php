@@ -1,7 +1,27 @@
 <?php
 require_once '../config/database.php';
 
-// No form processing needed - view only functionality
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'flush_visitor_logs':
+                try {
+                    $pdo = getConnection();
+                    
+                    // Delete all visitor logs
+                    $pdo->exec("DELETE FROM visitor_logs");
+                    
+                    $_SESSION['success'] = "All visitor logs have been deleted successfully.";
+                } catch (Exception $e) {
+                    $_SESSION['error'] = "Error: " . $e->getMessage();
+                }
+                header("Location: visitor_logs.php");
+                exit;
+                break;
+        }
+    }
+}
 
 $page_title = 'Visitor Logs (View Only)';
 include 'includes/header.php';
@@ -73,6 +93,11 @@ $visitor_logs = $stmt->fetchAll();
     <div>
         <h2><i class="fas fa-users"></i> Visitor Logs (View Only)</h2>
         <p class="text-muted mb-0">Students manage their own visitor registrations. Admins can view all logs and visitor details.</p>
+    </div>
+    <div>
+        <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#flushVisitorLogsModal">
+            <i class="fas fa-trash-alt"></i> Flush All Data
+        </button>
     </div>
 </div>
 
@@ -436,5 +461,43 @@ function viewVisitorDetails(visitorData) {
     modal.show();
 }
 </script>
+
+<!-- Flush Visitor Logs Data Confirmation Modal -->
+<div class="modal fade" id="flushVisitorLogsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Flush All Visitor Logs Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-warning"></i> WARNING: This action cannot be undone!</h6>
+                    <p class="mb-0">This will permanently delete:</p>
+                    <ul class="mb-0 mt-2">
+                        <li>All visitor logs</li>
+                        <li>All visitor check-in/check-out records</li>
+                        <li>All visitor contact information</li>
+                        <li>All visit history and timestamps</li>
+                    </ul>
+                </div>
+                <p class="mb-0">Are you absolutely sure you want to flush all visitor logs data?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="flush_visitor_logs">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt"></i> Yes, Flush All Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include 'includes/footer.php'; ?> 

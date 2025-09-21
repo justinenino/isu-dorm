@@ -137,6 +137,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     exit;
                     break;
                     
+                case 'flush_announcements':
+                    // Delete all announcements and related data
+                    $pdo->exec("DELETE FROM announcement_comment_likes");
+                    $pdo->exec("DELETE FROM announcement_comment_replies");
+                    $pdo->exec("DELETE FROM announcement_comments");
+                    $pdo->exec("DELETE FROM announcement_interactions");
+                    $pdo->exec("DELETE FROM announcement_likes");
+                    $pdo->exec("DELETE FROM announcement_views");
+                    $pdo->exec("DELETE FROM announcements");
+                    
+                    $_SESSION['success'] = "All announcements and related data have been deleted successfully.";
+                    header("Location: announcements.php");
+                    exit;
+                    break;
+                    
                 case 'add_comment':
                     $announcement_id = (int)$_POST['announcement_id'];
                     $comment = trim($_POST['comment']);
@@ -312,9 +327,14 @@ try {
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="fas fa-bullhorn"></i> Announcements Management</h2>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal">
-                <i class="fas fa-plus"></i> Create Announcement
-            </button>
+            <div>
+                <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#flushConfirmModal">
+                    <i class="fas fa-trash-alt"></i> Flush All Data
+                </button>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal">
+                    <i class="fas fa-plus"></i> Create Announcement
+                </button>
+            </div>
         </div>
 
         <?php if (!$has_analytics): ?>
@@ -1950,5 +1970,43 @@ function closeAllDropdowns() {
     }
 }
 </style>
+
+<!-- Flush Confirmation Modal -->
+<div class="modal fade" id="flushConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Flush All Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-warning"></i> WARNING: This action cannot be undone!</h6>
+                    <p class="mb-0">This will permanently delete:</p>
+                    <ul class="mb-0 mt-2">
+                        <li>All announcements</li>
+                        <li>All comments and replies</li>
+                        <li>All likes and interactions</li>
+                        <li>All view records</li>
+                    </ul>
+                </div>
+                <p class="mb-0">Are you absolutely sure you want to flush all announcement data?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="flush_announcements">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt"></i> Yes, Flush All Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include 'includes/footer.php'; ?> 
