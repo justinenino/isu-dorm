@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     // Check if building has students
                     $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM students s 
                                          JOIN rooms r ON s.room_id = r.id 
-                                         WHERE r.building_id = ? AND s.application_status = 'approved'");
+                                         WHERE r.building_id = ? AND s.application_status = 'approved' AND s.is_deleted = 0 AND s.is_active = 1");
                     $stmt->execute([$building_id]);
                     $student_count = $stmt->fetch()['count'];
                     
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     // Check if building has students
                     $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM students s 
                                          JOIN rooms r ON s.room_id = r.id 
-                                         WHERE r.building_id = ? AND s.application_status = 'approved'");
+                                         WHERE r.building_id = ? AND s.application_status = 'approved' AND s.is_deleted = 0 AND s.is_active = 1");
                     $stmt->execute([$building_id]);
                     $student_count = $stmt->fetch()['count'];
                     
@@ -221,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $room_id = (int)$_POST['room_id'];
                     
                     // Check if room has students
-                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE room_id = ?");
+                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM students WHERE room_id = ? AND is_deleted = 0 AND is_active = 1");
                     $stmt->execute([$room_id]);
                     $student_count = $stmt->fetchColumn();
                     
@@ -263,17 +263,6 @@ include 'includes/header.php';
 try {
     $pdo = getConnection();
     
-    // Get all buildings with room counts
-    $stmt = $pdo->query("SELECT b.*, 
-        COUNT(r.id) as total_rooms,
-        SUM(r.capacity) as total_capacity,
-        SUM(r.occupied) as total_occupied
-        FROM buildings b
-        LEFT JOIN rooms r ON b.id = r.building_id
-        GROUP BY b.id
-        ORDER BY b.name");
-    $buildings = $stmt->fetchAll();
-    
     // Get rooms with building details and occupancy
     $stmt = $pdo->query("SELECT r.*, 
         b.name as building_name,
@@ -291,7 +280,7 @@ try {
     $stmt = $pdo->query("SELECT s.id, s.first_name, s.last_name, s.school_id, s.room_id, bs.bed_number
         FROM students s
         LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
-        WHERE s.application_status = 'approved' AND s.room_id IS NOT NULL");
+        WHERE s.application_status = 'approved' AND s.room_id IS NOT NULL AND s.is_deleted = 0 AND s.is_active = 1");
     $students_in_rooms = $stmt->fetchAll();
     
     // Group students by room
@@ -303,6 +292,30 @@ try {
         }
         $students_by_room[$room_id][] = $student;
     }
+    
+    // Update room occupancy based on active students only
+    $stmt = $pdo->query("SELECT r.id, COUNT(s.id) as active_students
+        FROM rooms r
+        LEFT JOIN students s ON r.id = s.room_id AND s.application_status = 'approved' AND s.is_deleted = 0 AND s.is_active = 1
+        GROUP BY r.id");
+    $room_occupancy = $stmt->fetchAll();
+    
+    // Update the occupied count for each room
+    foreach ($room_occupancy as $occupancy) {
+        $stmt = $pdo->prepare("UPDATE rooms SET occupied = ? WHERE id = ?");
+        $stmt->execute([$occupancy['active_students'], $occupancy['id']]);
+    }
+    
+    // Recalculate building statistics with updated occupancy
+    $stmt = $pdo->query("SELECT b.*, 
+        COUNT(r.id) as total_rooms,
+        SUM(r.capacity) as total_capacity,
+        SUM(r.occupied) as total_occupied
+        FROM buildings b
+        LEFT JOIN rooms r ON b.id = r.building_id
+        GROUP BY b.id
+        ORDER BY b.name");
+    $buildings = $stmt->fetchAll();
     
 } catch (Exception $e) {
     $buildings = [];

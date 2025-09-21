@@ -55,14 +55,16 @@ try {
         FROM rooms WHERE status != 'maintenance'");
     $bed_stats = $stmt->fetch();
 
-    // Student statistics
+    // Student statistics (updated for access control)
     $stmt = $pdo->query("SELECT 
         COUNT(*) as total_students,
-        SUM(CASE WHEN application_status = 'pending' THEN 1 ELSE 0 END) as pending_applications,
-        SUM(CASE WHEN application_status = 'approved' THEN 1 ELSE 0 END) as approved_students,
-        SUM(CASE WHEN application_status = 'rejected' THEN 1 ELSE 0 END) as rejected_applications,
-        SUM(CASE WHEN gender = 'male' THEN 1 ELSE 0 END) as male_students,
-        SUM(CASE WHEN gender = 'female' THEN 1 ELSE 0 END) as female_students
+        SUM(CASE WHEN application_status = 'pending' AND is_deleted = 0 AND is_active = 1 THEN 1 ELSE 0 END) as pending_applications,
+        SUM(CASE WHEN application_status = 'approved' AND is_deleted = 0 AND is_active = 1 THEN 1 ELSE 0 END) as approved_students,
+        SUM(CASE WHEN application_status = 'rejected' AND is_deleted = 0 AND is_active = 1 THEN 1 ELSE 0 END) as rejected_applications,
+        SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) as archived_students,
+        SUM(CASE WHEN is_active = 0 AND is_deleted = 0 THEN 1 ELSE 0 END) as inactive_students,
+        SUM(CASE WHEN gender = 'Male' AND is_deleted = 0 AND is_active = 1 THEN 1 ELSE 0 END) as male_students,
+        SUM(CASE WHEN gender = 'Female' AND is_deleted = 0 AND is_active = 1 THEN 1 ELSE 0 END) as female_students
         FROM students");
     $student_stats = $stmt->fetch();
 
@@ -118,7 +120,7 @@ try {
     </div>
 </div>
 
-<!-- Key Metrics Cards -->
+<!-- Primary Metrics Cards - Top Row -->
 <div class="row mb-4">
     <div class="col-lg-3 col-md-6 mb-4">
         <a href="room_management.php" class="text-decoration-none">
@@ -143,6 +145,28 @@ try {
     </div>
     
     <div class="col-lg-3 col-md-6 mb-4">
+        <a href="room_management.php" class="text-decoration-none">
+            <div class="card stats-card-modern clickable-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="mb-1 text-success"><?php echo $bed_stats['available_beds']; ?></h3>
+                            <p class="mb-0 text-muted">Available Beds</p>
+                            <small class="text-info">of <?php echo $bed_stats['total_beds']; ?> total</small>
+                        </div>
+                        <div class="stats-icon-modern">
+                            <i class="fas fa-bed text-success"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-2" style="height: 4px;">
+                        <div class="progress-bar bg-success" style="width: <?php echo $bed_stats['total_beds'] > 0 ? ($bed_stats['available_beds'] / $bed_stats['total_beds']) * 100 : 0; ?>%"></div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-4">
         <a href="reservation_management.php" class="text-decoration-none">
             <div class="card stats-card-modern clickable-card">
                 <div class="card-body">
@@ -151,6 +175,7 @@ try {
                             <h3 class="mb-1 text-success"><?php echo $student_stats['approved_students']; ?></h3>
                             <p class="mb-0 text-muted">Active Students</p>
                             <small class="text-warning"><?php echo $student_stats['pending_applications']; ?> pending</small>
+                            <br><small class="text-muted"><?php echo $student_stats['archived_students']; ?> archived</small>
                         </div>
                         <div class="stats-icon-modern">
                             <i class="fas fa-user-graduate text-success"></i>
@@ -185,7 +210,10 @@ try {
             </div>
         </a>
     </div>
-    
+</div>
+
+<!-- Secondary Metrics Row -->
+<div class="row mb-4">
     <div class="col-lg-3 col-md-6 mb-4">
         <a href="maintenance_requests.php" class="text-decoration-none">
             <div class="card stats-card-modern clickable-card">
@@ -207,23 +235,23 @@ try {
             </div>
         </a>
     </div>
-</div>
-
-<!-- Additional Metrics Row -->
-<div class="row mb-4">
+    
     <div class="col-lg-3 col-md-6 mb-4">
-        <a href="room_management.php" class="text-decoration-none">
+        <a href="complaints_management.php" class="text-decoration-none">
             <div class="card stats-card-modern clickable-card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h3 class="mb-1 text-secondary"><?php echo $bed_stats['occupied_beds']; ?></h3>
-                            <p class="mb-0 text-muted">Occupied Beds</p>
-                            <small class="text-muted">of <?php echo $bed_stats['total_beds']; ?> total</small>
+                            <h3 class="mb-1 text-danger"><?php echo $pending_complaints; ?></h3>
+                            <p class="mb-0 text-muted">Pending Complaints</p>
+                            <small class="text-danger">Awaiting review</small>
                         </div>
                         <div class="stats-icon-modern">
-                            <i class="fas fa-bed text-secondary"></i>
+                            <i class="fas fa-comment-alt text-danger"></i>
                         </div>
+                    </div>
+                    <div class="progress mt-2" style="height: 4px;">
+                        <div class="progress-bar bg-danger" style="width: 100%"></div>
                     </div>
                 </div>
             </div>
@@ -250,36 +278,17 @@ try {
     </div>
     
     <div class="col-lg-3 col-md-6 mb-4">
-        <a href="complaints_management.php" class="text-decoration-none">
+        <a href="reservation_management.php?filter=archived" class="text-decoration-none">
             <div class="card stats-card-modern clickable-card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h3 class="mb-1 text-danger"><?php echo $pending_complaints; ?></h3>
-                            <p class="mb-0 text-muted">Pending Complaints</p>
-                            <small class="text-danger">Awaiting review</small>
+                            <h3 class="mb-1 text-secondary"><?php echo $student_stats['archived_students']; ?></h3>
+                            <p class="mb-0 text-muted">Archived Students</p>
+                            <small class="text-muted">Access revoked</small>
                         </div>
                         <div class="stats-icon-modern">
-                            <i class="fas fa-comment-alt text-danger"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </a>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-        <a href="announcements.php" class="text-decoration-none">
-            <div class="card stats-card-modern clickable-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="mb-1 text-success"><?php echo $total_announcements; ?></h3>
-                            <p class="mb-0 text-muted">Published Announcements</p>
-                            <small class="text-success">Active posts</small>
-                        </div>
-                        <div class="stats-icon-modern">
-                            <i class="fas fa-bullhorn text-success"></i>
+                            <i class="fas fa-archive text-secondary"></i>
                         </div>
                     </div>
                 </div>
@@ -288,7 +297,46 @@ try {
     </div>
 </div>
 
-<!-- Quick Actions and Recent Activities -->
+<!-- Pie Charts Section -->
+<div class="row mb-4">
+    <!-- Student Status Pie Chart -->
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Student Status Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="studentStatusChart" width="300" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Room Occupancy Pie Chart -->
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Room Occupancy Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="roomOccupancyChart" width="300" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bed Availability Pie Chart -->
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Bed Availability Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="bedAvailabilityChart" width="300" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions and System Overview -->
 <div class="row">
     <!-- Quick Actions -->
     <div class="col-lg-4 mb-4">
@@ -318,11 +366,11 @@ try {
         </div>
     </div>
     
-    <!-- System Status -->
+    <!-- System Overview -->
     <div class="col-lg-8 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-server"></i> System Status</h5>
+                <h5 class="mb-0"><i class="fas fa-server"></i> System Overview</h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -336,6 +384,12 @@ try {
                         <div class="border rounded p-3">
                             <h4 class="text-info"><?php echo $bed_stats['total_beds']; ?></h4>
                             <p class="mb-0">Total Bed Spaces</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <h4 class="text-success"><?php echo $bed_stats['available_beds']; ?></h4>
+                            <p class="mb-0">Available Beds</p>
                         </div>
                     </div>
                     <div class="col-md-3 text-center">
@@ -355,5 +409,151 @@ try {
         </div>
     </div>
 </div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Student Status Pie Chart
+const studentStatusCtx = document.getElementById('studentStatusChart').getContext('2d');
+const studentStatusChart = new Chart(studentStatusCtx, {
+    type: 'pie',
+    data: {
+        labels: ['Active Students', 'Pending Applications', 'Archived Students', 'Inactive Students'],
+        datasets: [{
+            data: [
+                <?php echo $student_stats['approved_students']; ?>,
+                <?php echo $student_stats['pending_applications']; ?>,
+                <?php echo $student_stats['archived_students']; ?>,
+                <?php echo $student_stats['inactive_students']; ?>
+            ],
+            backgroundColor: [
+                '#28a745', // Green for active
+                '#ffc107', // Yellow for pending
+                '#6c757d', // Gray for archived
+                '#dc3545'  // Red for inactive
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: true
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${percentage}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Room Occupancy Pie Chart
+const roomOccupancyCtx = document.getElementById('roomOccupancyChart').getContext('2d');
+const roomOccupancyChart = new Chart(roomOccupancyCtx, {
+    type: 'pie',
+    data: {
+        labels: ['Available Rooms', 'Occupied Rooms', 'Maintenance Rooms'],
+        datasets: [{
+            data: [
+                <?php echo $room_stats['available_rooms']; ?>,
+                <?php echo $room_stats['occupied_rooms']; ?>,
+                <?php echo $room_stats['maintenance_rooms']; ?>
+            ],
+            backgroundColor: [
+                '#28a745', // Green for available
+                '#007bff', // Blue for occupied
+                '#ffc107'  // Yellow for maintenance
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: true
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${percentage}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Bed Availability Pie Chart
+const bedAvailabilityCtx = document.getElementById('bedAvailabilityChart').getContext('2d');
+const bedAvailabilityChart = new Chart(bedAvailabilityCtx, {
+    type: 'pie',
+    data: {
+        labels: ['Available Beds', 'Occupied Beds'],
+        datasets: [{
+            data: [
+                <?php echo $bed_stats['available_beds']; ?>,
+                <?php echo $bed_stats['occupied_beds']; ?>
+            ],
+            backgroundColor: [
+                '#28a745', // Green for available
+                '#dc3545'  // Red for occupied
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: {
+                    padding: 20,
+                    usePointStyle: true
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const label = context.label || '';
+                        const value = context.parsed;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${percentage}%)`;
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
 
 <?php include 'includes/footer.php'; ?>
