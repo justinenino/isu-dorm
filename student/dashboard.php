@@ -6,8 +6,15 @@ include 'includes/header.php';
 $pdo = getConnection();
 
 try {
-    // Get student dashboard data using stored procedure
-    $stmt = $pdo->prepare("CALL GetStudentDashboardData(?)");
+    // Get student dashboard data using regular SQL query
+    $stmt = $pdo->prepare("SELECT s.*, 
+        CONCAT(s.first_name, ' ', IFNULL(s.middle_name, ''), ' ', s.last_name) as full_name,
+        r.room_number, r.floor_number, b.name as building_name, bs.bed_number
+        FROM students s
+        LEFT JOIN rooms r ON s.room_id = r.id
+        LEFT JOIN buildings b ON r.building_id = b.id
+        LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
+        WHERE s.id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $student = $stmt->fetch();
     
@@ -21,15 +28,22 @@ try {
     $stmt->execute();
     $recent_announcements = $stmt->fetchAll();
     
-    // Get student statistics using stored procedure
-    $stmt = $pdo->prepare("CALL GetStudentStatistics(?)");
+    // Get student statistics using regular SQL queries
+    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_maintenance_requests FROM maintenance_requests WHERE student_id = ? AND status = 'pending'");
     $stmt->execute([$_SESSION['user_id']]);
-    $stats = $stmt->fetch();
+    $pending_maintenance = $stmt->fetch()['pending_maintenance_requests'] ?? 0;
     
-    $pending_maintenance = $stats['pending_maintenance_requests'] ?? 0;
-    $pending_room_requests = $stats['pending_room_requests'] ?? 0;
-    $pending_complaints = $stats['pending_complaints'] ?? 0;
-    $total_offenses = $stats['total_offenses'] ?? 0;
+    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE student_id = ? AND status = 'pending'");
+    $stmt->execute([$_SESSION['user_id']]);
+    $pending_room_requests = $stmt->fetch()['pending_room_requests'] ?? 0;
+    
+    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_complaints FROM complaints WHERE student_id = ? AND status = 'pending'");
+    $stmt->execute([$_SESSION['user_id']]);
+    $pending_complaints = $stmt->fetch()['pending_complaints'] ?? 0;
+    
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offenses WHERE student_id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $total_offenses = $stmt->fetch()['total_offenses'] ?? 0;
     
 } catch (Exception $e) {
     error_log("Dashboard error: " . $e->getMessage());
@@ -41,36 +55,13 @@ try {
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>';
     
-    // Fallback to basic queries if stored procedures fail
-    $stmt = $pdo->prepare("SELECT s.*, 
-        CONCAT(s.first_name, ' ', IFNULL(s.middle_name, ''), ' ', s.last_name) as full_name,
-        r.room_number, r.floor_number, b.name as building_name, bs.bed_number
-        FROM students s
-        LEFT JOIN rooms r ON s.room_id = r.id
-        LEFT JOIN buildings b ON r.building_id = b.id
-        LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
-        WHERE s.id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $student = $stmt->fetch();
-    
-    $stmt = $pdo->query("SELECT * FROM announcements WHERE status = 'published' ORDER BY created_at DESC LIMIT 3");
-    $recent_announcements = $stmt->fetchAll();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_maintenance FROM maintenance_requests WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_maintenance = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_room_requests FROM room_change_requests WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_room_requests = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as pending_complaints FROM complaints WHERE student_id = ? AND status = 'pending'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $pending_complaints = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total_offenses FROM offenses WHERE student_id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $total_offenses = $stmt->fetchColumn();
+    // Set default values if queries fail
+    $student = null;
+    $recent_announcements = [];
+    $pending_maintenance = 0;
+    $pending_room_requests = 0;
+    $pending_complaints = 0;
+    $total_offenses = 0;
 }
 ?>
 
