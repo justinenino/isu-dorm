@@ -126,6 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     exit;
                     break;
                     
+                case 'unarchive_announcement':
+                    $announcement_id = (int)$_POST['announcement_id'];
+                    
+                    $stmt = $pdo->prepare("UPDATE announcements SET is_archived = 0 WHERE id = ?");
+                    $stmt->execute([$announcement_id]);
+                    
+                    $_SESSION['success'] = "Announcement unarchived successfully.";
+                    header("Location: announcements.php");
+                    exit;
+                    break;
+                    
                 case 'add_comment':
                     $announcement_id = (int)$_POST['announcement_id'];
                     $comment = trim($_POST['comment']);
@@ -629,6 +640,13 @@ try {
                                                                 <i class="fas fa-archive me-2"></i>Archive
                                                             </a>
                                                         </li>
+                                                    <?php else: ?>
+                                                        <li>
+                                                            <a class="dropdown-item" href="#" 
+                                                               onclick="unarchiveAnnouncement(<?php echo $announcement['id']; ?>); return false;">
+                                                                <i class="fas fa-box-open me-2"></i>Unarchive
+                                                            </a>
+                                                        </li>
                                                     <?php endif; ?>
                                                     <li><hr class="dropdown-divider"></li>
                                                     <li>
@@ -870,6 +888,12 @@ try {
     <input type="hidden" name="announcement_id" id="archiveAnnouncementId">
 </form>
 
+<!-- Unarchive Form -->
+<form id="unarchiveForm" method="POST" style="display: none;">
+    <input type="hidden" name="action" value="unarchive_announcement">
+    <input type="hidden" name="announcement_id" id="unarchiveAnnouncementId">
+</form>
+
 <!-- Analytics Modal -->
 <div class="modal fade" id="analyticsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -946,12 +970,35 @@ $(document).ready(function() {
         
         // Toggle current dropdown
         $menu.toggleClass('show');
+        
+        // Ensure dropdown is positioned correctly
+        if ($menu.hasClass('show')) {
+            // Reset any previous positioning
+            $menu.removeClass('dropdown-menu-up');
+            
+            // Check if there's enough space below
+            var dropdownRect = $dropdown[0].getBoundingClientRect();
+            var menuHeight = $menu.outerHeight();
+            var spaceBelow = window.innerHeight - dropdownRect.bottom;
+            
+            // If not enough space below, position above
+            if (spaceBelow < menuHeight && dropdownRect.top > menuHeight) {
+                $menu.addClass('dropdown-menu-up');
+            }
+        }
     });
     
     // Close dropdowns when clicking outside
     $(document).on('click', function(e) {
         if (!$(e.target).closest('.dropdown').length) {
-            $('.dropdown-menu').removeClass('show');
+            closeAllDropdowns();
+        }
+    });
+    
+    // Close dropdowns when clicking on table rows
+    $('#announcementsTable tbody').on('click', 'tr', function(e) {
+        if (!$(e.target).closest('.dropdown').length) {
+            closeAllDropdowns();
         }
     });
     
@@ -1342,6 +1389,11 @@ $(document).ready(function() {
             location.reload();
         }
     }, 300000);
+    
+    // Close dropdowns when scrolling to prevent positioning issues
+    $(window).on('scroll', function() {
+        closeAllDropdowns();
+    });
 });
 
 function deleteAnnouncement(id) {
@@ -1364,6 +1416,13 @@ function archiveAnnouncement(id) {
     if (confirm('Are you sure you want to archive this announcement?')) {
         $('#archiveAnnouncementId').val(id);
         $('#archiveForm').submit();
+    }
+}
+
+function unarchiveAnnouncement(id) {
+    if (confirm('Are you sure you want to unarchive this announcement?')) {
+        $('#unarchiveAnnouncementId').val(id);
+        $('#unarchiveForm').submit();
     }
 }
 
@@ -1471,6 +1530,11 @@ function escapeHtml(text) {
         "'": '&#039;'
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Simple function to close all dropdowns
+function closeAllDropdowns() {
+    $('.dropdown-menu').removeClass('show');
 }
 </script>
 
@@ -1580,9 +1644,11 @@ function escapeHtml(text) {
     position: absolute;
     top: 100%;
     right: 0;
-    z-index: 1000;
+    z-index: 1050;
     display: none;
-    min-width: 180px;
+    min-width: 200px;
+    max-width: 250px;
+    max-height: 300px;
     padding: 0.5rem 0;
     margin: 0.125rem 0 0;
     font-size: 1rem;
@@ -1594,10 +1660,20 @@ function escapeHtml(text) {
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: 0.375rem;
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
+    overflow-y: auto;
+    overflow-x: hidden;
+    transform: none !important;
 }
 
 .dropdown-menu.show {
     display: block;
+}
+
+.dropdown-menu-up {
+    top: auto !important;
+    bottom: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.125rem !important;
 }
 
 /* Table responsive improvements */
@@ -1639,23 +1715,63 @@ function escapeHtml(text) {
 /* Dropdown menu styling */
 .dropdown-menu {
     z-index: 1050;
-    min-width: 160px;
+    min-width: 200px;
+    max-width: 250px;
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+}
+
+/* Custom scrollbar for webkit browsers */
+.dropdown-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
 }
 
 .dropdown-item {
-    padding: 8px 16px;
+    padding: 10px 16px;
     font-size: 0.9rem;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.dropdown-item:last-child {
+    border-bottom: none;
 }
 
 .dropdown-item:hover {
     background-color: #f8f9fa;
     color: #495057;
+    transform: translateX(2px);
 }
 
 .dropdown-item.text-danger:hover {
     background-color: #f8d7da;
     color: #721c24;
+}
+
+.dropdown-item i {
+    width: 16px;
+    margin-right: 8px;
+    text-align: center;
 }
 
 .modal-content {
@@ -1765,12 +1881,14 @@ function escapeHtml(text) {
     }
     
     .dropdown-menu {
-        min-width: 160px;
+        min-width: 180px;
+        max-width: 220px;
+        max-height: 250px;
         font-size: 0.85rem;
     }
     
     .dropdown-item {
-        padding: 6px 12px;
+        padding: 8px 12px;
         font-size: 0.8rem;
     }
 }
@@ -1778,12 +1896,14 @@ function escapeHtml(text) {
 @media (max-width: 768px) {
     
     .dropdown-menu {
-        min-width: 150px;
+        min-width: 160px;
+        max-width: 200px;
+        max-height: 200px;
         font-size: 0.8rem;
     }
     
     .dropdown-item {
-        padding: 5px 10px;
+        padding: 6px 10px;
         font-size: 0.75rem;
     }
     
@@ -1810,12 +1930,14 @@ function escapeHtml(text) {
     
     
     .dropdown-menu {
-        min-width: 140px;
+        min-width: 150px;
+        max-width: 180px;
+        max-height: 180px;
         font-size: 0.75rem;
     }
     
     .dropdown-item {
-        padding: 4px 8px;
+        padding: 5px 8px;
         font-size: 0.7rem;
     }
     
