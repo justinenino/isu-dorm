@@ -950,11 +950,37 @@ function filterRooms(buildingId, status) {
 }
 
 function viewRoomStudents(roomId, roomNumber) {
-    // This would typically load students via AJAX
-    // For now, we'll show a placeholder
     $('#studentsModalTitle').text('Students in Room ' + roomNumber);
-    $('#studentsModalBody').html('<p class="text-center">Loading students...</p>');
+    $('#studentsModalBody').html('<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading students...</p></div>');
     $('#studentsModal').modal('show');
+    
+    // Load students via AJAX
+    $.ajax({
+        url: 'get_room_students.php',
+        method: 'GET',
+        data: { room_id: roomId },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                var studentsHtml = '';
+                if (response.students.length > 0) {
+                    studentsHtml = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Name</th><th>School ID</th><th>Bed Number</th><th>Contact</th></tr></thead><tbody>';
+                    response.students.forEach(function(student) {
+                        studentsHtml += '<tr><td>' + student.first_name + ' ' + student.last_name + '</td><td>' + student.school_id + '</td><td>Bed ' + (student.bed_number || 'Not assigned') + '</td><td>' + student.email + '</td></tr>';
+                    });
+                    studentsHtml += '</tbody></table></div>';
+                } else {
+                    studentsHtml = '<div class="alert alert-info text-center"><i class="fas fa-info-circle"></i> No students assigned to this room.</div>';
+                }
+                $('#studentsModalBody').html(studentsHtml);
+            } else {
+                $('#studentsModalBody').html('<div class="alert alert-danger text-center"><i class="fas fa-exclamation-triangle"></i> Error loading students: ' + response.message + '</div>');
+            }
+        },
+        error: function() {
+            $('#studentsModalBody').html('<div class="alert alert-danger text-center"><i class="fas fa-exclamation-triangle"></i> Error loading students. Please try again.</div>');
+        }
+    });
 }
 
 function deleteRoom(roomId, roomNumber) {
