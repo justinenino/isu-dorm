@@ -2,30 +2,25 @@
 /**
  * Hostinger Email Configuration for Dormitory Management System
  * 
- * This file handles email notifications specifically for Hostinger hosting
- * Uses multiple fallback methods for better reliability
+ * This file is specifically configured for Hostinger hosting
+ * Uses Hostinger's SMTP settings and Gmail integration
  */
 
 // Email Configuration for Hostinger
 define('EMAIL_ENABLED', true);
-define('EMAIL_SMTP_HOST', 'smtp.gmail.com');
-define('EMAIL_SMTP_PORT', 587);
-define('EMAIL_SMTP_USERNAME', 'dormitoryisue2025@gmail.com'); // Replace with your Gmail
-define('EMAIL_SMTP_PASSWORD', 'wwtw ovek dzbt yawj'); // Replace with your app password
-define('EMAIL_SMTP_ENCRYPTION', 'tls');
-
-// Email Settings
 define('EMAIL_FROM_NAME', 'ISU Dormitory Management');
 define('EMAIL_FROM_EMAIL', 'dormitoryisue2025@gmail.com');
 define('EMAIL_REPLY_TO', 'dormitoryisue2025@gmail.com');
 
-// Hostinger-specific settings
-define('EMAIL_USE_PHPMailer', true); // Use PHPMailer if available
-define('EMAIL_FALLBACK_TO_MAIL', true); // Fallback to mail() function
-define('EMAIL_DEBUG_MODE', false); // Set to true for debugging
+// Hostinger SMTP Configuration
+define('EMAIL_SMTP_HOST', 'smtp.gmail.com');
+define('EMAIL_SMTP_PORT', 587);
+define('EMAIL_SMTP_USERNAME', 'dormitoryisue2025@gmail.com');
+define('EMAIL_SMTP_PASSWORD', 'wwtw ovek dzbt yawj'); // Gmail app password
+define('EMAIL_SMTP_ENCRYPTION', 'tls');
 
 /**
- * Send email with multiple fallback methods for Hostinger
+ * Send email using Hostinger's mail() function with Gmail SMTP
  * 
  * @param string $to Recipient email
  * @param string $subject Email subject
@@ -33,121 +28,29 @@ define('EMAIL_DEBUG_MODE', false); // Set to true for debugging
  * @param string $alt_body Alternative text body
  * @return bool Success status
  */
-function sendEmailHostinger($to, $subject, $body, $alt_body = '') {
-    // Validate inputs
-    if (empty($to) || empty($subject) || empty($body)) {
-        error_log("Email validation failed: Missing required parameters");
-        return false;
-    }
-    
+function sendEmail($to, $subject, $body, $alt_body = '') {
     // Check if email is enabled
     if (!defined('EMAIL_ENABLED') || !EMAIL_ENABLED) {
         error_log("Email sending is disabled");
         return false;
     }
     
+    // Validate inputs
+    if (empty($to) || empty($subject) || empty($body)) {
+        error_log("Email validation failed: Missing required parameters");
+        return false;
+    }
+    
     // Log email attempt
     error_log("Attempting to send email to: $to with subject: $subject");
     
-    // Try PHPMailer first (if available)
-    if (defined('EMAIL_USE_PHPMailer') && EMAIL_USE_PHPMailer) {
-        $result = sendEmailViaPHPMailer($to, $subject, $body, $alt_body);
-        if ($result) {
-            error_log("Email sent successfully via PHPMailer to: $to");
-            return true;
-        }
-        error_log("PHPMailer failed, trying fallback method");
-    }
-    
-    // Try basic mail() function as fallback
-    if (defined('EMAIL_FALLBACK_TO_MAIL') && EMAIL_FALLBACK_TO_MAIL) {
-        $result = sendEmailViaMail($to, $subject, $body, $alt_body);
-        if ($result) {
-            error_log("Email sent successfully via mail() to: $to");
-            return true;
-        }
-        error_log("mail() function also failed");
-    }
-    
-    // All methods failed
-    error_log("All email sending methods failed for: $to");
-    return false;
-}
-
-/**
- * Send email using cURL with Gmail SMTP
- */
-function sendEmailViaPHPMailer($to, $subject, $body, $alt_body = '') {
-    // Use cURL to send email via Gmail SMTP
-    return sendEmailViaCurl($to, $subject, $body, $alt_body);
-}
-
-/**
- * Send email using cURL with Gmail SMTP
- */
-function sendEmailViaCurl($to, $subject, $body, $alt_body = '') {
     try {
-        // Create email headers
-        $boundary = md5(uniqid(time()));
-        $headers = array(
-            'From: ' . EMAIL_FROM_NAME . ' <' . EMAIL_FROM_EMAIL . '>',
-            'Reply-To: ' . EMAIL_REPLY_TO,
-            'MIME-Version: 1.0',
-            'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-            'X-Mailer: PHP/' . phpversion()
-        );
-        
-        // Create email body with both HTML and text versions
-        $email_body = "--$boundary\r\n";
-        $email_body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $email_body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-        $email_body .= $alt_body . "\r\n\r\n";
-        
-        $email_body .= "--$boundary\r\n";
-        $email_body .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $email_body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-        $email_body .= $body . "\r\n\r\n";
-        $email_body .= "--$boundary--\r\n";
-        
-        // Use cURL to send via Gmail SMTP
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, 'smtps://' . EMAIL_SMTP_HOST . ':' . EMAIL_SMTP_PORT);
-        curl_setopt($ch, CURLOPT_USERPWD, EMAIL_SMTP_USERNAME . ':' . EMAIL_SMTP_PASSWORD);
-        curl_setopt($ch, CURLOPT_USE_SSL, CURLUSESSL_ALL);
-        curl_setopt($ch, CURLOPT_MAIL_FROM, EMAIL_FROM_EMAIL);
-        curl_setopt($ch, CURLOPT_MAIL_RCPT, array($to));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $email_body);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_VERBOSE, true);
-        
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        curl_close($ch);
-        
-        if ($result === false || !empty($error)) {
-            error_log("cURL SMTP error: " . $error);
-            return false;
-        }
-        
-        error_log("Email sent successfully via cURL SMTP to: $to");
-        return true;
-        
-    } catch (Exception $e) {
-        error_log("cURL SMTP error: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Send email using basic mail() function
- */
-function sendEmailViaMail($to, $subject, $body, $alt_body = '') {
-    try {
-        // Configure SMTP settings for Gmail
+        // Configure SMTP settings for Hostinger
         ini_set('SMTP', EMAIL_SMTP_HOST);
         ini_set('smtp_port', EMAIL_SMTP_PORT);
         ini_set('sendmail_from', EMAIL_FROM_EMAIL);
+        ini_set('smtp_username', EMAIL_SMTP_USERNAME);
+        ini_set('smtp_password', EMAIL_SMTP_PASSWORD);
         
         // Create email headers
         $boundary = md5(uniqid(time()));
@@ -156,7 +59,8 @@ function sendEmailViaMail($to, $subject, $body, $alt_body = '') {
             'Reply-To: ' . EMAIL_REPLY_TO,
             'MIME-Version: 1.0',
             'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-            'X-Mailer: PHP/' . phpversion()
+            'X-Mailer: PHP/' . phpversion(),
+            'X-Priority: 3'
         );
         
         // Create email body with both HTML and text versions
@@ -171,45 +75,53 @@ function sendEmailViaMail($to, $subject, $body, $alt_body = '') {
         $email_body .= $body . "\r\n\r\n";
         $email_body .= "--$boundary--\r\n";
         
-        // Send email
+        // Send email using Hostinger's mail() function
         $result = mail($to, $subject, $email_body, implode("\r\n", $headers));
         
         if ($result) {
-            error_log("Email sent successfully via mail() to: $to");
+            error_log("Email sent successfully to: $to via Hostinger SMTP");
             return true;
         } else {
-            error_log("mail() function returned false for: $to");
+            error_log("Failed to send email to: $to via Hostinger SMTP");
             return false;
         }
         
     } catch (Exception $e) {
-        error_log("mail() function error: " . $e->getMessage());
+        error_log("Hostinger email sending error: " . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Send student approval notification email (Hostinger version)
+ * Send student approval notification email
+ * 
+ * @param array $student Student data
+ * @param array $room Room data
+ * @return bool Success status
  */
-function sendStudentApprovalEmailHostinger($student, $room) {
+function sendStudentApprovalEmail($student, $room) {
     $subject = "Dormitory Application Approved - Welcome to " . $room['building_name'] . "!";
     
     $body = getApprovalEmailTemplate($student, $room);
     $alt_body = getApprovalEmailTextTemplate($student, $room);
     
-    return sendEmailHostinger($student['email'], $subject, $body, $alt_body);
+    return sendEmail($student['email'], $subject, $body, $alt_body);
 }
 
 /**
- * Send student rejection notification email (Hostinger version)
+ * Send student rejection notification email
+ * 
+ * @param array $student Student data
+ * @param string $reason Rejection reason
+ * @return bool Success status
  */
-function sendStudentRejectionEmailHostinger($student, $reason = '') {
+function sendStudentRejectionEmail($student, $reason = '') {
     $subject = "Dormitory Application Status Update";
     
     $body = getRejectionEmailTemplate($student, $reason);
     $alt_body = getRejectionEmailTextTemplate($student, $reason);
     
-    return sendEmailHostinger($student['email'], $subject, $body, $alt_body);
+    return sendEmail($student['email'], $subject, $body, $alt_body);
 }
 
 /**
@@ -259,7 +171,7 @@ function getApprovalEmailTemplate($student, $room) {
                     <p><strong>Building:</strong> {$room['building_name']}</p>
                     <p><strong>Room Number:</strong> {$room['room_number']}</p>
                     <p><strong>Bed Space:</strong> {$room['bed_space_number']}</p>
-                    <p><strong>Room Type:</strong> {$room['room_type']}</p>
+                    <p><strong>Room Type:</strong> " . (isset($room['room_type']) ? $room['room_type'] : 'Standard') . "</p>
                 </div>
                 
                 <div class='info-box'>
@@ -311,7 +223,7 @@ YOUR ROOM ASSIGNMENT:
 - Building: {$room['building_name']}
 - Room Number: {$room['room_number']}
 - Bed Space: {$room['bed_space_number']}
-- Room Type: {$room['room_type']}
+- Room Type: " . (isset($room['room_type']) ? $room['room_type'] : 'Standard') . "
 
 NEXT STEPS:
 1. You can now log in to your student dashboard
@@ -404,17 +316,17 @@ This is an automated message from the Dormitory Management System.";
 }
 
 /**
- * Test email functionality
+ * Test email functionality for Hostinger
  */
-function testEmailHostinger($test_email = '') {
+function testEmail($test_email = '') {
     if (empty($test_email)) {
         $test_email = EMAIL_FROM_EMAIL;
     }
     
-    $subject = "Test Email from Dormitory Management System";
-    $body = "<h1>Test Email</h1><p>This is a test email to verify email functionality on Hostinger.</p>";
-    $alt_body = "Test Email - This is a test email to verify email functionality on Hostinger.";
+    $subject = "Test Email from ISU Dormitory Management System";
+    $body = "<h1>Test Email</h1><p>This is a test email to verify email functionality on Hostinger.</p><p>If you receive this email, the system is working correctly!</p>";
+    $alt_body = "Test Email - This is a test email to verify email functionality on Hostinger. If you receive this email, the system is working correctly!";
     
-    return sendEmailHostinger($test_email, $subject, $body, $alt_body);
+    return sendEmail($test_email, $subject, $body, $alt_body);
 }
 ?>

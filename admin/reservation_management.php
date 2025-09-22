@@ -1,10 +1,20 @@
 <?php
 require_once '../config/database.php';
-// Include email configuration - try Hostinger version first, fallback to original
-if (file_exists('../config/email_hostinger.php')) {
+// Include email configuration - prioritize Hostinger version for production
+if (file_exists('../config/hostinger_email.php')) {
+    require_once '../config/hostinger_email.php';
+} elseif (file_exists('../config/email_hostinger.php')) {
     require_once '../config/email_hostinger.php';
 } else {
-    require_once '../config/gmail_email.php';
+    // Fallback - create a basic email function
+    function sendStudentApprovalEmail($student, $room) {
+        error_log("Email system not configured - approval email not sent to: " . $student['email']);
+        return false;
+    }
+    function sendStudentRejectionEmail($student, $reason = '') {
+        error_log("Email system not configured - rejection email not sent to: " . $student['email']);
+        return false;
+    }
 }
 
 $success_message = '';
@@ -31,7 +41,7 @@ if ($_POST) {
                 
                 // Get room details for email notification
                 $stmt = $pdo->prepare("
-                    SELECT r.*, b.building_name, bs.bed_space_number 
+                    SELECT r.*, b.name as building_name, bs.bed_number as bed_space_number 
                     FROM rooms r 
                     JOIN buildings b ON r.building_id = b.id 
                     JOIN bed_spaces bs ON bs.room_id = r.id 
@@ -56,11 +66,13 @@ if ($_POST) {
                 
                 // Send approval email notification
                 if ($student && $room) {
-                    // Try Hostinger email function first, fallback to original
-                    if (function_exists('sendStudentApprovalEmailHostinger')) {
+                    // Try simple email function first, then Hostinger, then original
+                    if (function_exists('sendStudentApprovalEmail')) {
+                        $email_sent = sendStudentApprovalEmail($student, $room);
+                    } elseif (function_exists('sendStudentApprovalEmailHostinger')) {
                         $email_sent = sendStudentApprovalEmailHostinger($student, $room);
                     } else {
-                        $email_sent = sendStudentApprovalEmail($student, $room);
+                        $email_sent = false;
                     }
                     
                     if ($email_sent) {
@@ -89,11 +101,13 @@ if ($_POST) {
         if ($stmt->execute([$student_id])) {
             // Send rejection email notification
             if ($student) {
-                // Try Hostinger email function first, fallback to original
-                if (function_exists('sendStudentRejectionEmailHostinger')) {
+                // Try simple email function first, then Hostinger, then original
+                if (function_exists('sendStudentRejectionEmail')) {
+                    $email_sent = sendStudentRejectionEmail($student);
+                } elseif (function_exists('sendStudentRejectionEmailHostinger')) {
                     $email_sent = sendStudentRejectionEmailHostinger($student);
                 } else {
-                    $email_sent = sendStudentRejectionEmail($student);
+                    $email_sent = false;
                 }
                 
                 if ($email_sent) {
