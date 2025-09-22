@@ -399,7 +399,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     • <strong>Admins:</strong> Use Username + Password
                 </div>
                 <p>New student? <a href="register.php">Register here</a></p>
-                <p><a href="registration_status.php">Check Application Status</a></p>
             </div>
         </div>
     </div>
