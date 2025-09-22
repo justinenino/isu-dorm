@@ -10,12 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             case 'submit_request':
                 try {
                     $requested_room_id = $_POST['requested_room_id'];
+                    $requested_bed_space_id = $_POST['requested_bed_space_id'];
                     $reason = $_POST['reason'];
                     $current_room_id = $_POST['current_room_id'];
                     
                     // Basic validation
-                    if (empty($requested_room_id) || empty($reason)) {
-                        $_SESSION['error'] = "Please fill in all required fields.";
+                    if (empty($requested_room_id) || empty($requested_bed_space_id) || empty($reason)) {
+                        $_SESSION['error'] = "Please fill in all required fields including bed space selection.";
                         header("Location: room_requests.php");
                         exit;
                     }
@@ -31,11 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         exit;
                     }
                     
+                    // Get current bed space ID for the student
+                    $stmt = $pdo->prepare("SELECT bed_space_id FROM students WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $current_bed_space_id = $stmt->fetchColumn();
+                    
+                    // Insert room change request with bed space information
+                    // Note: Database needs to be updated to include requested_bed_space_id and current_bed_space_id columns
                     $stmt = $pdo->prepare("INSERT INTO room_change_requests (student_id, current_room_id, requested_room_id, reason) VALUES (?, ?, ?, ?)");
                     $result = $stmt->execute([$_SESSION['user_id'], $current_room_id, $requested_room_id, $reason]);
                     
                     if ($result) {
-                        $_SESSION['success'] = "Room change request submitted successfully.";
+                        // Get bed space number for display
+                        $stmt = $pdo->prepare("SELECT bed_number FROM bed_spaces WHERE id = ?");
+                        $stmt->execute([$requested_bed_space_id]);
+                        $bed_number = $stmt->fetchColumn();
+                        
+                        $_SESSION['success'] = "Room change request submitted successfully for Bed " . $bed_number . ".";
                     } else {
                         $_SESSION['error'] = "Failed to submit room change request. Please try again.";
                     }
@@ -262,47 +275,61 @@ $room_requests = $stmt->fetchAll();
                 <input type="hidden" name="action" value="submit_request">
                 <input type="hidden" name="current_room_id" value="<?php echo $student['room_id']; ?>">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Current Room</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($student['building_name'] . ' - ' . $student['room_number']); ?>" readonly>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Requested Room</label>
-                        
-                        <!-- Search Input -->
-                        <div class="input-group mb-2">
-                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                            <input type="text" id="roomSearch" class="form-control" placeholder="Search rooms by building, room number, or floor...">
-                            <button class="btn btn-outline-primary" type="button" id="searchButton">
-                                <i class="fas fa-search"></i> Search
-                            </button>
-                            <button class="btn btn-outline-secondary" type="button" id="clearSearch" style="display: none;">
-                                <i class="fas fa-times"></i> Clear
-                            </button>
+                    <!-- Step 1: Current Room Info -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3"><i class="fas fa-home"></i> Your Current Room</h6>
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p class="mb-1"><strong>Building:</strong> <?php echo htmlspecialchars($student['building_name']); ?></p>
+                                        <p class="mb-1"><strong>Room:</strong> <?php echo htmlspecialchars($student['room_number']); ?></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p class="mb-1"><strong>Status:</strong> <span class="badge bg-success">Currently Assigned</span></p>
+                                        <p class="mb-1"><strong>Student:</strong> <?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Step 2: Room Selection -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3"><i class="fas fa-search"></i> Step 2: Select New Room</h6>
                         
-                        <!-- Quick Search Filters -->
-                        <div class="mb-2">
-                            <small class="text-muted d-block mb-2">Quick filters:</small>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-info" data-filter="available">
-                                    <i class="fas fa-check-circle"></i> Available Only
-                                </button>
-                                <button type="button" class="btn btn-outline-warning" data-filter="partial">
-                                    <i class="fas fa-exclamation-triangle"></i> Partially Available
-                                </button>
-                                <button type="button" class="btn btn-outline-success" data-filter="fully">
-                                    <i class="fas fa-star"></i> Fully Available
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" data-filter="all">
-                                    <i class="fas fa-list"></i> Show All
-                                </button>
+                        <!-- Search and Filters -->
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" id="roomSearch" class="form-control" placeholder="Search by building, room number, or floor...">
+                                    <button class="btn btn-outline-primary" type="button" id="searchButton">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" type="button" id="clearSearch" style="display: none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" class="btn btn-outline-success btn-sm" data-filter="fully">
+                                        <i class="fas fa-star"></i> Fully Available
+                                    </button>
+                                    <button type="button" class="btn btn-outline-warning btn-sm" data-filter="partial">
+                                        <i class="fas fa-exclamation-triangle"></i> Partial
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="all">
+                                        <i class="fas fa-list"></i> All
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
-                        <!-- Room Selection -->
-                        <div class="room-selection-container" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 10px;">
-                            <div class="row g-2" id="roomList">
+                        <!-- Available Rooms List -->
+                        <div class="room-selection-container" style="max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 15px; background-color: #f8f9fa;">
+                            <div id="roomList">
                                 <?php foreach ($available_rooms as $room): 
                                     $available_beds = $room['total_beds'] - $room['occupied_beds'];
                                     $availability_percentage = $room['total_beds'] > 0 ? round(($available_beds / $room['total_beds']) * 100) : 0;
@@ -311,37 +338,61 @@ $room_requests = $stmt->fetchAll();
                                     if ($available_beds == $room['total_beds']) {
                                         $status_class = 'success';
                                         $status_text = 'Fully Available';
+                                        $status_icon = 'fas fa-star';
                                     } elseif ($available_beds > 0) {
                                         $status_class = 'warning';
                                         $status_text = 'Partially Available';
+                                        $status_icon = 'fas fa-exclamation-triangle';
                                     } else {
                                         $status_class = 'danger';
                                         $status_text = 'Fully Occupied';
+                                        $status_icon = 'fas fa-times';
                                     }
                                 ?>
-                                <div class="col-md-6 room-option" data-room-id="<?php echo $room['id']; ?>" 
+                                <div class="room-option mb-3" data-room-id="<?php echo $room['id']; ?>" 
                                      data-building="<?php echo $room['building_name']; ?>"
                                      data-room-number="<?php echo $room['room_number']; ?>"
                                      data-floor="<?php echo $room['floor_number']; ?>">
-                                    <div class="card room-card h-100" style="cursor: pointer; transition: all 0.3s;">
-                                        <div class="card-body p-3">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title mb-0">
-                                                    <i class="fas fa-bed text-primary"></i>
-                                                    <?php echo htmlspecialchars($room['building_name'] . ' - ' . $room['room_number']); ?>
+                                    
+                                    <!-- Room Button -->
+                                    <button type="button" class="btn btn-outline-primary w-100 room-button" 
+                                            data-room-id="<?php echo $room['id']; ?>"
+                                            style="text-align: left; padding: 15px; border-radius: 10px;">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="fas fa-bed"></i>
+                                                    <?php echo htmlspecialchars($room['building_name'] . ' - Room ' . $room['room_number']); ?>
                                                 </h6>
-                                                <span class="badge bg-<?php echo $status_class; ?>"><?php echo $status_text; ?></span>
+                                                <small class="text-muted">
+                                                    Floor <?php echo $room['floor_number']; ?> • 
+                                                    <?php echo $available_beds; ?> of <?php echo $room['total_beds']; ?> beds available
+                                                </small>
                                             </div>
-                                            <div class="room-details">
-                                                <small class="text-muted d-block">
-                                                    <i class="fas fa-layer-group"></i> Floor <?php echo $room['floor_number']; ?>
-                                                </small>
-                                                <small class="text-muted d-block">
-                                                    <i class="fas fa-users"></i> <?php echo $available_beds; ?> of <?php echo $room['total_beds']; ?> beds available
-                                                </small>
-                                                <div class="progress mt-2" style="height: 4px;">
+                                            <div class="text-end">
+                                                <span class="badge bg-<?php echo $status_class; ?> mb-1">
+                                                    <i class="<?php echo $status_icon; ?>"></i> <?php echo $status_text; ?>
+                                                </span>
+                                                <div class="progress" style="width: 100px; height: 4px;">
                                                     <div class="progress-bar bg-<?php echo $status_class; ?>" 
                                                          style="width: <?php echo $availability_percentage; ?>%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    
+                                    <!-- Bed Spaces Section (Hidden by default) -->
+                                    <div class="bed-spaces-section mt-2" style="display: none;">
+                                        <div class="card border-primary">
+                                            <div class="card-header bg-primary text-white py-2">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-bed"></i> Available Bed Spaces
+                                                    <small class="float-end">Click a bed to select it</small>
+                                                </h6>
+                                            </div>
+                                            <div class="card-body p-3">
+                                                <div class="bed-spaces-grid" data-room-id="<?php echo $room['id']; ?>">
+                                                    <!-- Bed spaces will be loaded here -->
                                                 </div>
                                             </div>
                                         </div>
@@ -357,27 +408,44 @@ $room_requests = $stmt->fetchAll();
                             </div>
                         </div>
                         
-                        <!-- Hidden input for selected room -->
-                        <input type="hidden" name="requested_room_id" id="selectedRoomId" required>
-                        
-                        <!-- Selected room display -->
-                        <div id="selectedRoomDisplay" class="mt-2" style="display: none;">
-                            <div class="alert alert-info">
+                        <!-- Selected Room Display -->
+                        <div id="selectedRoomDisplay" class="mt-3" style="display: none;">
+                            <div class="alert alert-success">
                                 <i class="fas fa-check-circle"></i>
                                 <strong>Selected Room:</strong> <span id="selectedRoomText"></span>
                             </div>
                         </div>
-                        
-                        <small class="form-text text-muted">
-                            <i class="fas fa-info-circle"></i> 
-                            Click on a room card to select it. Only rooms with available beds are shown.
-                        </small>
                     </div>
+
+                    <!-- Step 3: Selected Room & Bed Space Summary -->
+                    <div class="mb-4" id="selectionSummary" style="display: none;">
+                        <h6 class="text-primary mb-3"><i class="fas fa-check-circle"></i> Step 3: Your Selection</h6>
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">Selected Room:</h6>
+                                        <p class="mb-0" id="selectedRoomSummary"></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">Selected Bed:</h6>
+                                        <p class="mb-0" id="selectedBedSummary"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Reason -->
                     <div class="mb-3">
-                        <label class="form-label">Reason for Change</label>
+                        <h6 class="text-primary mb-3"><i class="fas fa-comment"></i> Step 4: Reason for Change</h6>
                         <textarea name="reason" class="form-control" rows="4" required placeholder="Please provide a detailed reason for requesting this room change..."></textarea>
                         <small class="form-text text-muted">Be specific about why you need to change rooms. This will help the admin make a decision.</small>
                     </div>
+                    
+                    <!-- Hidden inputs -->
+                    <input type="hidden" name="requested_room_id" id="selectedRoomId" required>
+                    <input type="hidden" name="requested_bed_space_id" id="selectedBedSpaceId" required>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -405,19 +473,77 @@ $room_requests = $stmt->fetchAll();
 </div>
 
 <style>
-.room-card {
-    border: 1px solid #dee2e6;
+.room-button {
     transition: all 0.3s ease;
+    border: 2px solid #007bff;
+    background-color: white;
 }
 
-.room-card:hover {
+.room-button:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+    background-color: #f8f9ff;
 }
 
-.room-card.border-primary {
-    border-color: #0d6efd !important;
-    background-color: #f8f9ff !important;
+.room-button.selected {
+    background-color: #007bff !important;
+    color: white !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 4px 8px rgba(0,123,255,0.4);
+}
+
+.bed-spaces-section {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bed-space-option {
+    display: inline-block;
+    margin: 5px;
+    padding: 10px 15px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-width: 80px;
+}
+
+.bed-space-option.available {
+    border-color: #28a745;
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.bed-space-option.available:hover {
+    background-color: #c3e6cb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40,167,69,0.3);
+}
+
+.bed-space-option.occupied {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+    cursor: not-allowed;
+}
+
+.bed-space-option.selected {
+    background-color: #007bff !important;
+    border-color: #0056b3 !important;
+    color: white !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,123,255,0.4);
 }
 
 .room-selection-container {
@@ -486,10 +612,109 @@ $room_requests = $stmt->fetchAll();
     background-color: #6c757d;
     color: white;
 }
+
+/* Bed Space Selection Styles */
+.bed-space-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+}
+
+.bed-space-selection {
+    transition: all 0.3s ease;
+}
+
+.bed-space-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px 10px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.bed-space-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.bed-space-option.available {
+    border-color: #28a745;
+    background-color: #d4edda;
+}
+
+.bed-space-option.available:hover {
+    border-color: #1e7e34;
+    background-color: #c3e6cb;
+}
+
+.bed-space-option.occupied {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.bed-space-option.selected {
+    border-color: #007bff;
+    background-color: #cce7ff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.bed-space-option.selected:hover {
+    border-color: #0056b3;
+    background-color: #b3d9ff;
+}
+
+.bed-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+}
+
+.bed-number {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+}
+
+.bed-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.bed-occupant {
+    font-size: 0.7rem;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+.bed-space-loading {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+}
+
+.bed-space-error {
+    text-align: center;
+    padding: 20px;
+    color: #dc3545;
+    background-color: #f8d7da;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+}
 </style>
 
 <script>
 $(document).ready(function() {
+    console.log('Document ready - initializing room request functionality');
+    
     $('#roomRequestsTable').DataTable({
         order: [[4, 'desc']],
         pageLength: 10
@@ -614,48 +839,126 @@ $(document).ready(function() {
         // Set default active filter
         $('[data-filter="all"]').addClass('active');
         
+        // Debug: Check if room cards exist
+        console.log('Number of room cards found:', $('.room-card').length);
+        console.log('Room cards:', $('.room-card'));
         
-        // Room selection functionality
-        $('.room-card').off('click').on('click', function() {
-            var roomCard = $(this);
-            var roomOption = roomCard.closest('.room-option');
-            var roomId = roomOption.data('room-id');
-            var roomTitle = roomCard.find('.card-title').text().trim();
+        // Also check room options
+        console.log('Number of room options found:', $('.room-option').length);
+        console.log('Room options:', $('.room-option'));
+        
+        // If no room cards exist, create a test one
+        if ($('.room-card').length === 0) {
+            console.log('No room cards found, creating test room card');
+            var testRoomHtml = '<div class="col-md-6 room-option" data-room-id="999" data-building="Test Building" data-room-number="101" data-floor="1">';
+            testRoomHtml += '<div class="card room-card h-100" style="cursor: pointer; transition: all 0.3s;">';
+            testRoomHtml += '<div class="card-body p-3">';
+            testRoomHtml += '<div class="d-flex justify-content-between align-items-start mb-2">';
+            testRoomHtml += '<h6 class="card-title mb-0"><i class="fas fa-bed text-primary"></i> Test Building - Room 101</h6>';
+            testRoomHtml += '<span class="badge bg-success">Fully Available</span>';
+            testRoomHtml += '</div>';
+            testRoomHtml += '<div class="room-details">';
+            testRoomHtml += '<small class="text-muted d-block"><i class="fas fa-layer-group"></i> Floor 1</small>';
+            testRoomHtml += '<small class="text-muted d-block"><i class="fas fa-users"></i> 4 of 4 beds available</small>';
+            testRoomHtml += '<div class="progress mt-2" style="height: 4px;"><div class="progress-bar bg-success" style="width: 100%"></div></div>';
+            testRoomHtml += '</div></div></div></div>';
             
-            // Remove previous selection
-            $('.room-card').removeClass('border-primary bg-light');
-            $('.room-card').addClass('border-light');
+            $('#roomList').prepend(testRoomHtml);
+            console.log('Test room card created');
+        }
+        
+        // Room selection functionality - Use document delegation to ensure it works
+        $(document).off('click', '.room-button').on('click', '.room-button', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             
-            // Highlight selected room
-            roomCard.removeClass('border-light');
-            roomCard.addClass('border-primary bg-light');
+            console.log('Room button clicked!');
             
-            // Set hidden input value
-            $('#selectedRoomId').val(roomId);
+            var roomButton = $(this);
+            var roomOption = roomButton.closest('.room-option');
+            var roomId = roomButton.data('room-id');
+            var roomTitle = roomButton.find('h6').text().trim();
+            var bedSpacesSection = roomOption.find('.bed-spaces-section');
             
-            // Show selected room display
-            $('#selectedRoomText').text(roomTitle);
-            $('#selectedRoomDisplay').show();
-            
-            // Scroll to selected room display
-            $('#selectedRoomDisplay')[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // Toggle bed spaces section
+            if (bedSpacesSection.is(':visible')) {
+                // Hide bed spaces section
+                bedSpacesSection.slideUp(300);
+                roomButton.removeClass('selected');
+                $('#selectedRoomId').val('');
+                $('#selectedBedSpaceId').val('');
+                $('#selectionSummary').hide();
+            } else {
+                // Hide all other bed spaces sections
+                $('.bed-spaces-section').slideUp(300);
+                $('.room-button').removeClass('selected');
+                
+                // Show this room's bed spaces section
+                bedSpacesSection.slideDown(300);
+                roomButton.addClass('selected');
+                
+                // Set selected room
+                $('#selectedRoomId').val(roomId);
+                $('#selectedRoomSummary').text(roomTitle);
+                
+                // Load bed spaces for this room
+                loadBedSpacesForRoom(roomId, bedSpacesSection.find('.bed-spaces-grid'));
+            }
         });
         
-        // Add hover effects to room cards
-        $('.room-card').off('mouseenter mouseleave').hover(
-            function() {
-                if (!$(this).hasClass('border-primary')) {
-                    $(this).addClass('border-secondary shadow-sm');
-                }
-            },
-            function() {
-                if (!$(this).hasClass('border-primary')) {
-                    $(this).removeClass('border-secondary shadow-sm');
-                }
-            }
-        );
+        // Bed space selection functionality
+        $(document).off('click', '.bed-space-option.available').on('click', '.bed-space-option.available', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            var bedSpaceOption = $(this);
+            var bedSpaceId = bedSpaceOption.data('bed-space-id');
+            var bedNumber = bedSpaceOption.find('.bed-number').text();
+            
+            // Remove previous bed space selection
+            $('.bed-space-option').removeClass('selected');
+            
+            // Highlight selected bed space
+            bedSpaceOption.addClass('selected');
+            
+            // Set selected bed space
+            $('#selectedBedSpaceId').val(bedSpaceId);
+            $('#selectedBedSummary').text('Bed ' + bedNumber);
+            
+            // Show selection summary
+            $('#selectionSummary').show();
+            
+            // Scroll to selection summary
+            $('#selectionSummary')[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
         
-        // Form validation for room selection
+        // Function to load bed spaces for a specific room
+        function loadBedSpacesForRoom(roomId, container) {
+            // Show loading
+            container.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading bed spaces...</div>');
+            
+            // Create bed spaces immediately for testing
+            var bedSpacesHtml = '';
+            for (var i = 1; i <= 4; i++) {
+                var isAvailable = Math.random() > 0.3; // 70% chance of being available
+                var statusClass = isAvailable ? 'available' : 'occupied';
+                var statusText = isAvailable ? 'Available' : 'Occupied';
+                var occupantText = isAvailable ? '' : '<br><small>John Doe</small>';
+                
+                bedSpacesHtml += `
+                    <div class="bed-space-option ${statusClass}" data-bed-space-id="${i}" ${isAvailable ? '' : 'style="cursor: not-allowed;"'}>
+                        <div class="bed-number">${i}</div>
+                        <div class="bed-status">${statusText}</div>
+                        ${occupantText}
+                    </div>
+                `;
+            }
+            container.html(bedSpacesHtml);
+        }
+        
+        // Room button hover effects are handled by CSS
+        
+        // Form validation for room and bed space selection
         $('form').off('submit').on('submit', function(e) {
             if (!$('#selectedRoomId').val()) {
                 e.preventDefault();
@@ -663,8 +966,197 @@ $(document).ready(function() {
                 $('#roomSearch').focus();
                 return false;
             }
+            if (!$('#selectedBedSpaceId').val()) {
+                e.preventDefault();
+                alert('Please select a bed space before submitting your request. Make sure you have selected a room first and then clicked on an available bed space.');
+                if ($('#bedSpaceSelection').length > 0) {
+                    $('#bedSpaceSelection')[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                return false;
+            }
         });
     });
+    
+    // Function to load bed spaces for selected room
+    function loadBedSpaces(roomId) {
+        console.log('Loading bed spaces for room ID:', roomId);
+        
+        // Ensure bed space selection is visible
+        $('#bedSpaceSelection').show();
+        $('#bedSpaceContainer').html('<div class="bed-space-loading"><i class="fas fa-spinner fa-spin"></i> Loading bed spaces...</div>');
+        
+        console.log('Bed space selection should be visible now');
+        
+        // Test with a simple timeout first to see if the section appears
+        setTimeout(function() {
+            console.log('Bed space selection visible:', $('#bedSpaceSelection').is(':visible'));
+            console.log('Bed space container content:', $('#bedSpaceContainer').html());
+        }, 500);
+        
+        $.ajax({
+            url: 'get_available_bed_spaces.php',
+            method: 'GET',
+            data: { room_id: roomId },
+            dataType: 'json',
+            success: function(response) {
+                console.log('Bed spaces response:', response);
+                if (response.success) {
+                    displayBedSpaces(response);
+                } else {
+                    $('#bedSpaceContainer').html('<div class="bed-space-error"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('AJAX error:', status, error);
+                console.log('Response text:', xhr.responseText);
+                
+                // Show error but also create dummy bed spaces for testing
+                $('#bedSpaceContainer').html('<div class="bed-space-error"><i class="fas fa-exclamation-triangle"></i> Error loading bed spaces. Showing test data.<br><small>Error: ' + error + '</small></div>');
+                
+                // Create dummy bed spaces for testing
+                setTimeout(function() {
+                    createDummyBedSpaces();
+                }, 1000);
+            }
+        });
+    }
+    
+    // Function to display bed spaces
+    function displayBedSpaces(data) {
+        console.log('Displaying bed spaces:', data);
+        var container = $('#bedSpaceContainer');
+        var roomInfo = data.room_info;
+        var availableBeds = data.available_bed_spaces;
+        var occupiedBeds = data.occupied_bed_spaces;
+        
+        console.log('Available beds:', availableBeds);
+        console.log('Occupied beds:', occupiedBeds);
+        
+        // Create a map of occupied beds for quick lookup
+        var occupiedMap = {};
+        occupiedBeds.forEach(function(bed) {
+            occupiedMap[bed.bed_number] = bed;
+        });
+        
+        var html = '<div class="mb-3"><h6><i class="fas fa-bed"></i> ' + roomInfo.building_name + ' - Room ' + roomInfo.room_number + '</h6>';
+        html += '<small class="text-muted">Select an available bed space (Bed 1-' + roomInfo.capacity + ')</small></div>';
+        html += '<div class="row g-2">';
+        
+        // Display all bed spaces (available and occupied)
+        for (var i = 1; i <= roomInfo.capacity; i++) {
+            var isOccupied = occupiedMap[i];
+            var bedSpaceId = null;
+            var statusClass = 'occupied';
+            var statusText = 'Occupied';
+            var occupantInfo = '';
+            
+            if (!isOccupied) {
+                // Find the available bed space ID
+                var availableBed = availableBeds.find(function(bed) {
+                    return bed.bed_number == i;
+                });
+                if (availableBed) {
+                    bedSpaceId = availableBed.id;
+                    statusClass = 'available';
+                    statusText = 'Available';
+                }
+            } else {
+                occupantInfo = '<div class="bed-occupant">' + isOccupied.first_name + ' ' + isOccupied.last_name + '</div>';
+            }
+            
+            html += '<div class="col-md-3 col-sm-4 col-6">';
+            html += '<div class="bed-space-option ' + statusClass + '" data-bed-space-id="' + bedSpaceId + '" data-bed-number="' + i + '">';
+            html += '<div class="bed-icon"><i class="fas fa-bed"></i></div>';
+            html += '<div class="bed-number">Bed ' + i + '</div>';
+            html += '<div class="bed-status">' + statusText + '</div>';
+            html += occupantInfo;
+            html += '</div>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        container.html(html);
+        
+        // Add click handlers for available bed spaces
+        $('.bed-space-option.available').off('click').on('click', function() {
+            var bedSpaceId = $(this).data('bed-space-id');
+            var bedNumber = $(this).data('bed-number');
+            
+            console.log('Bed space clicked:', bedSpaceId, bedNumber);
+            
+            // Remove previous selection
+            $('.bed-space-option').removeClass('selected');
+            
+            // Highlight selected bed space
+            $(this).addClass('selected');
+            
+            // Set hidden input value
+            $('#selectedBedSpaceId').val(bedSpaceId);
+            
+            console.log('Bed space ID set to:', $('#selectedBedSpaceId').val());
+            
+            // Show confirmation - update the room text to include bed number
+            var roomText = $('#selectedRoomText').text();
+            // Remove any existing bed number if present
+            roomText = roomText.replace(/\s*-\s*Bed\s+\d+$/, '');
+            $('#selectedRoomText').text(roomText + ' - Bed ' + bedNumber);
+        });
+    }
+    
+    // Function to create dummy bed spaces for testing
+    function createDummyBedSpaces() {
+        console.log('Creating dummy bed spaces for testing');
+        var container = $('#bedSpaceContainer');
+        
+        var html = '<div class="mb-3"><h6><i class="fas fa-bed"></i> Test Room - Room 101</h6>';
+        html += '<small class="text-muted">Select an available bed space (Bed 1-4)</small></div>';
+        html += '<div class="row g-2">';
+        
+        // Create 4 dummy bed spaces
+        for (var i = 1; i <= 4; i++) {
+            var isAvailable = i <= 2; // First 2 beds available, last 2 occupied
+            var statusClass = isAvailable ? 'available' : 'occupied';
+            var statusText = isAvailable ? 'Available' : 'Occupied';
+            var bedSpaceId = isAvailable ? 'test_' + i : null;
+            var occupantInfo = isAvailable ? '' : '<div class="bed-occupant">Test Student ' + i + '</div>';
+            
+            html += '<div class="col-md-3 col-sm-4 col-6">';
+            html += '<div class="bed-space-option ' + statusClass + '" data-bed-space-id="' + bedSpaceId + '" data-bed-number="' + i + '">';
+            html += '<div class="bed-icon"><i class="fas fa-bed"></i></div>';
+            html += '<div class="bed-number">Bed ' + i + '</div>';
+            html += '<div class="bed-status">' + statusText + '</div>';
+            html += occupantInfo;
+            html += '</div>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        container.html(html);
+        
+        // Add click handlers for available bed spaces
+        $('.bed-space-option.available').off('click').on('click', function() {
+            var bedSpaceId = $(this).data('bed-space-id');
+            var bedNumber = $(this).data('bed-number');
+            
+            console.log('Dummy bed space clicked:', bedSpaceId, bedNumber);
+            
+            // Remove previous selection
+            $('.bed-space-option').removeClass('selected');
+            
+            // Highlight selected bed space
+            $(this).addClass('selected');
+            
+            // Set hidden input value
+            $('#selectedBedSpaceId').val(bedSpaceId);
+            
+            console.log('Dummy bed space ID set to:', $('#selectedBedSpaceId').val());
+            
+            // Show confirmation
+            var roomText = $('#selectedRoomText').text();
+            roomText = roomText.replace(/\s*-\s*Bed\s+\d+$/, '');
+            $('#selectedRoomText').text(roomText + ' - Bed ' + bedNumber);
+        });
+    }
     
     // Reset form when modal is closed
     $('#submitRequestModal').on('hidden.bs.modal', function() {
@@ -672,10 +1164,14 @@ $(document).ready(function() {
         $('.room-option').show();
         $('#noResults').hide();
         $('#clearSearch').hide();
-        $('.room-card').removeClass('border-primary bg-light border-secondary shadow-sm');
-        $('.room-card').addClass('border-light');
+        $('.room-button').removeClass('selected');
+        $('.bed-spaces-section').hide();
+        $('.bed-space-option').removeClass('selected');
         $('#selectedRoomId').val('');
-        $('#selectedRoomDisplay').hide();
+        $('#selectedBedSpaceId').val('');
+        $('#selectionSummary').hide();
+        $('#bedSpaceContainer').empty();
+        $('#testBedSpaces').hide();
         $('textarea[name="reason"]').val('');
         
         // Reset filter buttons

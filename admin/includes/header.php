@@ -519,6 +519,10 @@ requireAdmin();
             white-space: nowrap;
         }
         
+        .dropdown {
+            position: relative;
+        }
+        
         .oval-button.dropdown-toggle::after {
             margin-left: 8px;
             border-top: 0.3em solid;
@@ -534,6 +538,16 @@ requireAdmin();
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+            min-width: 200px;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
         }
         
         .dropdown-item {

@@ -76,6 +76,40 @@
                 }
             }
         });
+
+        // Debug dropdown functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdownToggle = document.getElementById('userDropdown');
+            if (dropdownToggle) {
+                console.log('Dropdown toggle found:', dropdownToggle);
+                
+                // Test if Bootstrap dropdown is working
+                dropdownToggle.addEventListener('click', function(e) {
+                    console.log('Dropdown clicked');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Manually toggle dropdown
+                    const dropdownMenu = dropdownToggle.nextElementSibling;
+                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                        dropdownMenu.classList.toggle('show');
+                        console.log('Dropdown toggled manually');
+                    }
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!dropdownToggle.contains(e.target)) {
+                        const dropdownMenu = dropdownToggle.nextElementSibling;
+                        if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                            dropdownMenu.classList.remove('show');
+                        }
+                    }
+                });
+            } else {
+                console.log('Dropdown toggle not found');
+            }
+        });
     </script>
 </body>
 </html>
