@@ -4,9 +4,9 @@ require_once __DIR__ . '/timezone.php';
 
 // Database configuration
 define('DB_HOST', 'localhost');
-define('DB_USERNAME', 'root');
-define('DB_PASSWORD', '');
-define('DB_NAME', 'dormitory_management');
+define('DB_USERNAME', 'u260113372_dorm_user');
+define('DB_PASSWORD', 'Dormitory123');
+define('DB_NAME', 'u260113372_dormitory_db');
 
 // Create connection
 function getConnection() {

@@ -58,19 +58,23 @@ if ($_POST) {
                 $stmt = $pdo->prepare("UPDATE bed_spaces SET is_occupied = TRUE, student_id = ? WHERE id = ?");
                 $stmt->execute([$student_id, $bed_space_id]);
                 
-                // Update room occupancy
-                $stmt = $pdo->prepare("UPDATE rooms SET occupied = occupied + 1, status = CASE WHEN occupied + 1 >= capacity THEN 'full' ELSE 'available' END WHERE id = ?");
-                $stmt->execute([$room_id]);
+                // Update room occupancy - count actual occupied bed spaces
+                $stmt = $pdo->prepare("UPDATE rooms SET 
+                    occupied = (SELECT COUNT(*) FROM bed_spaces WHERE room_id = ? AND is_occupied = TRUE),
+                    status = CASE 
+                        WHEN (SELECT COUNT(*) FROM bed_spaces WHERE room_id = ? AND is_occupied = TRUE) >= capacity THEN 'full' 
+                        ELSE 'available' 
+                    END 
+                    WHERE id = ?");
+                $stmt->execute([$room_id, $room_id, $room_id]);
                 
                 $pdo->commit();
                 
                 // Send approval email notification
                 if ($student && $room) {
-                    // Try simple email function first, then Hostinger, then original
+                    // Try email function
                     if (function_exists('sendStudentApprovalEmail')) {
                         $email_sent = sendStudentApprovalEmail($student, $room);
-                    } elseif (function_exists('sendStudentApprovalEmailHostinger')) {
-                        $email_sent = sendStudentApprovalEmailHostinger($student, $room);
                     } else {
                         $email_sent = false;
                     }
@@ -101,11 +105,9 @@ if ($_POST) {
         if ($stmt->execute([$student_id])) {
             // Send rejection email notification
             if ($student) {
-                // Try simple email function first, then Hostinger, then original
+                // Try email function
                 if (function_exists('sendStudentRejectionEmail')) {
                     $email_sent = sendStudentRejectionEmail($student);
-                } elseif (function_exists('sendStudentRejectionEmailHostinger')) {
-                    $email_sent = sendStudentRejectionEmailHostinger($student);
                 } else {
                     $email_sent = false;
                 }
@@ -174,10 +176,12 @@ $students = $stmt->fetchAll();
 
 // Get available rooms and bed spaces
 $stmt = $pdo->query("SELECT r.id as room_id, r.room_number, r.floor_number, r.capacity, r.occupied,
-    b.name as building_name, b.id as building_id
+    b.name as building_name, b.id as building_id,
+    (SELECT COUNT(*) FROM bed_spaces bs WHERE bs.room_id = r.id AND bs.is_occupied = FALSE) as available_beds
     FROM rooms r
     JOIN buildings b ON r.building_id = b.id
-    WHERE r.status = 'available' AND r.occupied < r.capacity
+    WHERE r.status = 'available' 
+    AND EXISTS (SELECT 1 FROM bed_spaces bs WHERE bs.room_id = r.id AND bs.is_occupied = FALSE)
     ORDER BY b.name, r.room_number");
 $available_rooms = $stmt->fetchAll();
 ?>
@@ -424,9 +428,10 @@ $available_rooms = $stmt->fetchAll();
                                 <option value="<?php echo $room['room_id']; ?>" 
                                         data-building="<?php echo htmlspecialchars($room['building_name']); ?>"
                                         data-capacity="<?php echo $room['capacity']; ?>"
-                                        data-occupied="<?php echo $room['occupied']; ?>">
+                                        data-occupied="<?php echo $room['occupied']; ?>"
+                                        data-available="<?php echo $room['available_beds']; ?>">
                                     <?php echo htmlspecialchars($room['building_name'] . ' - Room ' . $room['room_number']); ?>
-                                    (<?php echo ($room['capacity'] - $room['occupied']); ?> beds available)
+                                    (<?php echo $room['available_beds']; ?> beds available)
                                 </option>
                             <?php endforeach; ?>
                         </select>

@@ -16,7 +16,7 @@ define('EMAIL_REPLY_TO', 'dormitoryisue2025@gmail.com');
 define('EMAIL_SMTP_HOST', 'smtp.gmail.com');
 define('EMAIL_SMTP_PORT', 587);
 define('EMAIL_SMTP_USERNAME', 'dormitoryisue2025@gmail.com');
-define('EMAIL_SMTP_PASSWORD', 'dxpm ekie zguc yliy'); // Gmail app password
+define('EMAIL_SMTP_PASSWORD', 'nbew ezmh qtnm nbea'); // Gmail app password
 define('EMAIL_SMTP_ENCRYPTION', 'tls');
 
 /**
@@ -49,6 +49,9 @@ function sendEmail($to, $subject, $body, $alt_body = '') {
         $is_hostinger = (isset($_SERVER['HTTP_HOST']) && 
                         (strpos($_SERVER['HTTP_HOST'], 'hostinger') !== false || 
                          strpos($_SERVER['HTTP_HOST'], '.com') !== false));
+        
+        // For testing, detect environment properly
+        // $is_hostinger = true; // Uncomment this line to force Hostinger mode for testing
         
         if ($is_hostinger) {
             // Configure SMTP settings for Hostinger (production)
@@ -167,10 +170,8 @@ function sendStudentRejectionEmail($student, $reason = '') {
  * Get HTML email template for approval notification
  */
 function getApprovalEmailTemplate($student, $room) {
-    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
-    $script_path = isset($_SERVER['PHP_SELF']) ? dirname($_SERVER['PHP_SELF']) : '';
-    $login_url = $protocol . '://' . $host . $script_path . '/login.php';
+    // Use the correct Hostinger URL for production
+    $login_url = 'https://skyblue-ibis-464501.hostingersite.com/login.php';
     
     return "
     <!DOCTYPE html>
@@ -221,7 +222,13 @@ function getApprovalEmailTemplate($student, $room) {
                         <li>Check your room assignment details</li>
                         <li>Contact dormitory management if you have questions</li>
                     </ol>
-                    <p><a href='{$login_url}' class='button'>Access Student Dashboard</a></p>
+                    <p style='text-align: center; margin: 20px 0;'>
+                        <a href='{$login_url}' style='display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;'>Access Student Dashboard</a>
+                    </p>
+                    <p style='text-align: center; margin: 10px 0; color: #666; font-size: 14px;'>
+                        If the button doesn't work, copy and paste this link: <br>
+                        <a href='{$login_url}' style='color: #007bff; word-break: break-all;'>{$login_url}</a>
+                    </p>
                 </div>
                 
                 <div class='info-box'>
@@ -247,10 +254,8 @@ function getApprovalEmailTemplate($student, $room) {
  * Get text email template for approval notification
  */
 function getApprovalEmailTextTemplate($student, $room) {
-    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
-    $script_path = isset($_SERVER['PHP_SELF']) ? dirname($_SERVER['PHP_SELF']) : '';
-    $login_url = $protocol . '://' . $host . $script_path . '/login.php';
+    // Use the correct Hostinger URL for production
+    $login_url = 'https://skyblue-ibis-464501.hostingersite.com/login.php';
     
     return "
 DORMITORY APPLICATION APPROVED - ISU
@@ -272,7 +277,9 @@ NEXT STEPS:
 4. Contact dormitory management if you have questions
 
 ACCESS YOUR DASHBOARD:
-{$login_url}
+Click here: {$login_url}
+
+IMPORTANT: If the link doesn't work, copy and paste the URL above into your browser.
 
 CONTACT INFORMATION:
 For questions or assistance, contact the dormitory management office.
