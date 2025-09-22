@@ -45,12 +45,26 @@ function sendEmail($to, $subject, $body, $alt_body = '') {
     error_log("Attempting to send email to: $to with subject: $subject");
     
     try {
-        // Configure SMTP settings for Hostinger
-        ini_set('SMTP', EMAIL_SMTP_HOST);
-        ini_set('smtp_port', EMAIL_SMTP_PORT);
-        ini_set('sendmail_from', EMAIL_FROM_EMAIL);
-        ini_set('smtp_username', EMAIL_SMTP_USERNAME);
-        ini_set('smtp_password', EMAIL_SMTP_PASSWORD);
+        // Check if we're on Hostinger (production) or local XAMPP
+        $is_hostinger = (isset($_SERVER['HTTP_HOST']) && 
+                        (strpos($_SERVER['HTTP_HOST'], 'hostinger') !== false || 
+                         strpos($_SERVER['HTTP_HOST'], '.com') !== false));
+        
+        if ($is_hostinger) {
+            // Configure SMTP settings for Hostinger (production)
+            ini_set('SMTP', EMAIL_SMTP_HOST);
+            ini_set('smtp_port', EMAIL_SMTP_PORT);
+            ini_set('sendmail_from', EMAIL_FROM_EMAIL);
+            ini_set('smtp_username', EMAIL_SMTP_USERNAME);
+            ini_set('smtp_password', EMAIL_SMTP_PASSWORD);
+            error_log("Using Hostinger SMTP configuration");
+        } else {
+            // For local XAMPP, use localhost SMTP (won't work with Gmail)
+            ini_set('SMTP', 'localhost');
+            ini_set('smtp_port', '25');
+            ini_set('sendmail_from', EMAIL_FROM_EMAIL);
+            error_log("Using local XAMPP SMTP configuration (emails will not be sent)");
+        }
         
         // Create email headers with enhanced security and authentication
         $boundary = md5(uniqid(time()));
@@ -89,15 +103,26 @@ function sendEmail($to, $subject, $body, $alt_body = '') {
         $email_body .= $body . "\r\n\r\n";
         $email_body .= "--$boundary--\r\n";
         
-        // Send email using Hostinger's mail() function
-        $result = mail($to, $subject, $email_body, implode("\r\n", $headers));
-        
-        if ($result) {
-            error_log("Email sent successfully to: $to via Hostinger SMTP");
-            return true;
+        // Send email using appropriate method
+        if ($is_hostinger) {
+            // Use Hostinger's mail() function with Gmail SMTP
+            $result = mail($to, $subject, $email_body, implode("\r\n", $headers));
+            
+            if ($result) {
+                error_log("Email sent successfully to: $to via Hostinger SMTP");
+                return true;
+            } else {
+                error_log("Failed to send email to: $to via Hostinger SMTP");
+                return false;
+            }
         } else {
-            error_log("Failed to send email to: $to via Hostinger SMTP");
-            return false;
+            // For local XAMPP, simulate email sending (won't actually send)
+            error_log("LOCAL MODE: Simulating email send to: $to");
+            error_log("LOCAL MODE: Subject: $subject");
+            error_log("LOCAL MODE: Email would be sent on Hostinger production server");
+            
+            // In local mode, we'll simulate success for testing
+            return true;
         }
         
     } catch (Exception $e) {
