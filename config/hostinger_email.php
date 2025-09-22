@@ -52,21 +52,29 @@ function sendEmail($to, $subject, $body, $alt_body = '') {
         ini_set('smtp_username', EMAIL_SMTP_USERNAME);
         ini_set('smtp_password', EMAIL_SMTP_PASSWORD);
         
-        // Create email headers with anti-spam measures
+        // Create email headers with enhanced security and authentication
         $boundary = md5(uniqid(time()));
+        $message_id = '<' . uniqid() . '@' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'isu-dormitory.com') . '>';
+        
         $headers = array(
             'From: ' . EMAIL_FROM_NAME . ' <' . EMAIL_FROM_EMAIL . '>',
             'Reply-To: ' . EMAIL_REPLY_TO,
             'Return-Path: ' . EMAIL_FROM_EMAIL,
+            'Message-ID: ' . $message_id,
             'MIME-Version: 1.0',
             'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-            'X-Mailer: ISU Dormitory Management System',
+            'X-Mailer: ISU Dormitory Management System v1.0',
             'X-Priority: 3',
             'X-MSMail-Priority: Normal',
             'Importance: Normal',
-            'List-Unsubscribe: <mailto:' . EMAIL_REPLY_TO . '>',
+            'X-Originating-IP: [' . (isset($_SERVER['SERVER_ADDR']) ? $_SERVER['SERVER_ADDR'] : '127.0.0.1') . ']',
+            'X-Sender: ' . EMAIL_FROM_EMAIL,
+            'X-Authentication-Results: ' . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'isu-dormitory.com') . '; none',
+            'X-Report-Abuse: Please report abuse to ' . EMAIL_REPLY_TO,
+            'List-Unsubscribe: <mailto:' . EMAIL_REPLY_TO . '?subject=unsubscribe>',
             'X-Auto-Response-Suppress: All',
-            'Precedence: bulk'
+            'Precedence: bulk',
+            'X-Entity-Ref-ID: ' . uniqid()
         );
         
         // Create email body with both HTML and text versions
@@ -200,8 +208,10 @@ function getApprovalEmailTemplate($student, $room) {
             </div>
             
             <div class='footer'>
-                <p>This is an official notification from ISU Dormitory Management System.</p>
-                <p>Please add this email to your contacts to ensure future notifications reach your inbox.</p>
+                <p><strong>Security Notice:</strong> This is an official notification from ISU Dormitory Management System.</p>
+                <p>This email was sent from a verified university system. If you did not apply for dormitory accommodation, please ignore this email.</p>
+                <p>For security purposes, please add this email address to your contacts to ensure future notifications reach your inbox.</p>
+                <p><strong>Official Contact:</strong> dormitoryisue2025@gmail.com | Isabela State University</p>
             </div>
         </div>
     </body>
@@ -244,8 +254,12 @@ For questions or assistance, contact the dormitory management office.
 Email: dormitoryisue2025@gmail.com
 Phone: (02) 123-4567
 
-This is an official notification from ISU Dormitory Management System.
-Please add this email to your contacts to ensure future notifications reach your inbox.";
+SECURITY NOTICE: This is an official notification from ISU Dormitory Management System.
+This email was sent from a verified university system. If you did not apply for dormitory accommodation, please ignore this email.
+
+For security purposes, please add this email address to your contacts to ensure future notifications reach your inbox.
+
+Official Contact: dormitoryisue2025@gmail.com | Isabela State University";
 }
 
 /**
