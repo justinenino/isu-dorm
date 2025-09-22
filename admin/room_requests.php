@@ -46,16 +46,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         
                         try {
                             // Update student's room assignment
-                            $stmt = $pdo->prepare("UPDATE students SET room_id = ?, bed_space_id = ? WHERE id = ?");
-                            $stmt->execute([$request['requested_room_id'], null, $request['student_id']]);
+                            if (isset($request['requested_bed_space_id']) && $request['requested_bed_space_id']) {
+                                $stmt = $pdo->prepare("UPDATE students SET room_id = ?, bed_space_id = ? WHERE id = ?");
+                                $stmt->execute([$request['requested_room_id'], $request['requested_bed_space_id'], $request['student_id']]);
+                            } else {
+                                $stmt = $pdo->prepare("UPDATE students SET room_id = ? WHERE id = ?");
+                                $stmt->execute([$request['requested_room_id'], $request['student_id']]);
+                            }
                             
-                            // Update room occupancy
-                            $stmt = $pdo->prepare("UPDATE rooms SET occupied = occupied + 1 WHERE id = ?");
-                            $stmt->execute([$request['requested_room_id']]);
+                            // Update bed space occupancy if bed space ID exists
+                            if (isset($request['requested_bed_space_id']) && $request['requested_bed_space_id']) {
+                                $stmt = $pdo->prepare("UPDATE bed_spaces SET is_occupied = TRUE, student_id = ? WHERE id = ?");
+                                $stmt->execute([$request['student_id'], $request['requested_bed_space_id']]);
+                            }
+                            
+                            // Update room occupancy based on bed spaces
+                            $stmt = $pdo->prepare("UPDATE rooms SET occupied = (SELECT COUNT(*) FROM bed_spaces WHERE room_id = ? AND is_occupied = TRUE) WHERE id = ?");
+                            $stmt->execute([$request['requested_room_id'], $request['requested_room_id']]);
                             
                             if ($request['current_room_id'] && $request['current_room_id'] != $request['requested_room_id']) {
-                                $stmt = $pdo->prepare("UPDATE rooms SET occupied = GREATEST(occupied - 1, 0) WHERE id = ?");
-                                $stmt->execute([$request['current_room_id']]);
+                                // Free up the old bed space
+                                $stmt = $pdo->prepare("UPDATE bed_spaces SET is_occupied = FALSE, student_id = NULL WHERE student_id = ?");
+                                $stmt->execute([$request['student_id']]);
+                                
+                                // Update old room occupancy based on bed spaces
+                                $stmt = $pdo->prepare("UPDATE rooms SET occupied = (SELECT COUNT(*) FROM bed_spaces WHERE room_id = ? AND is_occupied = TRUE) WHERE id = ?");
+                                $stmt->execute([$request['current_room_id'], $request['current_room_id']]);
                             }
                             
                             // Update request status
@@ -111,20 +127,24 @@ include 'includes/header.php';
 
 $pdo = getConnection();
 
-// Get room change requests with student and room details
+// Get room change requests with student and room details including bed spaces
 $stmt = $pdo->query("SELECT rcr.*, 
     CONCAT(s.first_name, ' ', s.last_name) as student_name,
     s.school_id,
     current_r.room_number as current_room,
     current_b.name as current_building,
+    current_bs.bed_number as current_bed_number,
     requested_r.room_number as requested_room,
-    requested_b.name as requested_building
+    requested_b.name as requested_building,
+    requested_bs.bed_number as requested_bed_number
     FROM room_change_requests rcr
     JOIN students s ON rcr.student_id = s.id
     LEFT JOIN rooms current_r ON rcr.current_room_id = current_r.id
     LEFT JOIN buildings current_b ON current_r.building_id = current_b.id
+    LEFT JOIN bed_spaces current_bs ON rcr.current_bed_space_id = current_bs.id
     LEFT JOIN rooms requested_r ON rcr.requested_room_id = requested_r.id
     LEFT JOIN buildings requested_b ON requested_r.building_id = requested_b.id
+    LEFT JOIN bed_spaces requested_bs ON rcr.requested_bed_space_id = requested_bs.id
     ORDER BY rcr.requested_at DESC");
 $room_requests = $stmt->fetchAll();
 ?>
@@ -194,7 +214,9 @@ $room_requests = $stmt->fetchAll();
                     <tr>
                         <th>Student</th>
                         <th>Current Room</th>
+                        <th>Current Bed</th>
                         <th>Requested Room</th>
+                        <th>Requested Bed</th>
                         <th>Reason</th>
                         <th>Status</th>
                         <th>Requested</th>
@@ -216,8 +238,22 @@ $room_requests = $stmt->fetchAll();
                                 <?php endif; ?>
                             </td>
                             <td>
+                                <?php if ($request['current_bed_number']): ?>
+                                    <span class="badge bg-info">Bed <?php echo htmlspecialchars($request['current_bed_number']); ?></span>
+                                <?php else: ?>
+                                    <span class="text-muted">Not assigned</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <?php if ($request['requested_room']): ?>
                                     <?php echo htmlspecialchars($request['requested_building'] . ' - ' . $request['requested_room']); ?>
+                                <?php else: ?>
+                                    <span class="text-muted">Not specified</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($request['requested_bed_number']): ?>
+                                    <span class="badge bg-primary">Bed <?php echo htmlspecialchars($request['requested_bed_number']); ?></span>
                                 <?php else: ?>
                                     <span class="text-muted">Not specified</span>
                                 <?php endif; ?>
@@ -340,8 +376,38 @@ window.addEventListener('load', function() {
                 <div class="col-md-6">
                     <h6>Request Details</h6>
                     <p><strong>Current Room:</strong> ${request.current_room ? (request.current_building + ' - ' + request.current_room) : 'Not assigned'}</p>
+                    <p><strong>Current Bed:</strong> ${request.current_bed_number ? ('Bed ' + request.current_bed_number) : 'Not assigned'}</p>
                     <p><strong>Requested Room:</strong> ${request.requested_room ? (request.requested_building + ' - ' + request.requested_room) : 'Not specified'}</p>
+                    <p><strong>Requested Bed:</strong> ${request.requested_bed_number ? ('Bed ' + request.requested_bed_number) : 'Not specified'}</p>
                     <p><strong>Requested:</strong> ${new Date(request.requested_at).toLocaleString()}</p>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6>Room & Bed Space Change Summary</h6>
+                    <div class="card border-primary">
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-5">
+                                    <h6 class="text-muted">FROM</h6>
+                                    <div class="p-2 border rounded">
+                                        <strong>${request.current_room ? (request.current_building + ' - ' + request.current_room) : 'Not assigned'}</strong><br>
+                                        <span class="badge bg-info">${request.current_bed_number ? ('Bed ' + request.current_bed_number) : 'Not assigned'}</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-center justify-content-center">
+                                    <i class="fas fa-arrow-right fa-2x text-primary"></i>
+                                </div>
+                                <div class="col-md-5">
+                                    <h6 class="text-muted">TO</h6>
+                                    <div class="p-2 border rounded">
+                                        <strong>${request.requested_room ? (request.requested_building + ' - ' + request.requested_room) : 'Not specified'}</strong><br>
+                                        <span class="badge bg-primary">${request.requested_bed_number ? ('Bed ' + request.requested_bed_number) : 'Not specified'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="row mt-3">

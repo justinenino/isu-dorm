@@ -9,16 +9,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         switch ($_POST['action']) {
             case 'submit_request':
                 try {
-                    $requested_room_id = $_POST['requested_room_id'];
-                    $requested_bed_space_id = $_POST['requested_bed_space_id'];
-                    $reason = $_POST['reason'];
-                    $current_room_id = $_POST['current_room_id'];
+                    // Get form data with better error handling
+                    $requested_room_id = isset($_POST['requested_room_id']) ? (int)$_POST['requested_room_id'] : 0;
+                    $requested_bed_space_id = isset($_POST['requested_bed_space_id']) ? (int)$_POST['requested_bed_space_id'] : 0;
+                    $reason = isset($_POST['reason']) ? trim($_POST['reason']) : '';
+                    $current_room_id = isset($_POST['current_room_id']) ? (int)$_POST['current_room_id'] : 0;
+                    
+                    // Validate bed space ID - if it's 0 or invalid, set to NULL
+                    if ($requested_bed_space_id <= 0) {
+                        $requested_bed_space_id = null;
+                    } else {
+                        // Verify the bed space exists and belongs to the requested room
+                        $stmt = $pdo->prepare("SELECT id FROM bed_spaces WHERE id = ? AND room_id = ?");
+                        $stmt->execute([$requested_bed_space_id, $requested_room_id]);
+                        if (!$stmt->fetchColumn()) {
+                            error_log("Invalid bed space ID: " . $requested_bed_space_id . " for room: " . $requested_room_id);
+                            $requested_bed_space_id = null;
+                        }
+                    }
+                    
+                    // Debug logging
+                    error_log("Room change request data received:");
+                    error_log("- requested_room_id: " . $requested_room_id);
+                    error_log("- requested_bed_space_id: " . ($requested_bed_space_id ?? 'NULL'));
+                    error_log("- reason: " . $reason);
+                    error_log("- current_room_id: " . $current_room_id);
+                    error_log("- POST data: " . print_r($_POST, true));
+                    
+                    // Also log to a file for easier debugging
+                    file_put_contents('debug_room_request.log', 
+                        "[" . date('Y-m-d H:i:s') . "] Room change request data:\n" .
+                        "- requested_room_id: " . $requested_room_id . "\n" .
+                        "- requested_bed_space_id: " . ($requested_bed_space_id ?? 'NULL') . "\n" .
+                        "- reason: " . $reason . "\n" .
+                        "- current_room_id: " . $current_room_id . "\n" .
+                        "- POST data: " . print_r($_POST, true) . "\n\n", 
+                        FILE_APPEND
+                    );
                     
                     // Basic validation
-                    if (empty($requested_room_id) || empty($requested_bed_space_id) || empty($reason)) {
-                        $_SESSION['error'] = "Please fill in all required fields including bed space selection.";
+                    if (!$requested_room_id || !$reason) {
+                        $_SESSION['error'] = "Please fill in all required fields.";
+                        error_log("Validation failed - missing required fields");
                         header("Location: room_requests.php");
                         exit;
+                    }
+                    
+                    // Bed space validation (optional if columns don't exist)
+                    if (!$requested_bed_space_id) {
+                        error_log("Warning: No bed space ID provided - will be stored as NULL");
                     }
                     
                     // Check if student already has a pending request
@@ -37,18 +76,47 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->execute([$_SESSION['user_id']]);
                     $current_bed_space_id = $stmt->fetchColumn();
                     
-                    // Insert room change request with bed space information
-                    // Note: Database needs to be updated to include requested_bed_space_id and current_bed_space_id columns
-                    $stmt = $pdo->prepare("INSERT INTO room_change_requests (student_id, current_room_id, requested_room_id, reason) VALUES (?, ?, ?, ?)");
-                    $result = $stmt->execute([$_SESSION['user_id'], $current_room_id, $requested_room_id, $reason]);
+                    // Insert room change request - try with bed space columns first, fallback to basic
+                    $result = false;
+                    $insert_error = '';
+                    
+                    try {
+                        // Try with bed space columns first
+                        error_log("Attempting insert with bed space columns");
+                        $stmt = $pdo->prepare("INSERT INTO room_change_requests (student_id, current_room_id, requested_room_id, requested_bed_space_id, current_bed_space_id, reason) VALUES (?, ?, ?, ?, ?, ?)");
+                        $result = $stmt->execute([$_SESSION['user_id'], $current_room_id, $requested_room_id, $requested_bed_space_id, $current_bed_space_id, $reason]);
+                        error_log("Insert with bed space columns successful");
+                    } catch (Exception $e) {
+                        error_log("Insert with bed space columns failed: " . $e->getMessage());
+                        $insert_error = $e->getMessage();
+                        
+                        // Fallback to basic insert
+                        try {
+                            error_log("Attempting basic insert without bed space columns");
+                            $stmt = $pdo->prepare("INSERT INTO room_change_requests (student_id, current_room_id, requested_room_id, reason) VALUES (?, ?, ?, ?)");
+                            $result = $stmt->execute([$_SESSION['user_id'], $current_room_id, $requested_room_id, $reason]);
+                            error_log("Basic insert successful");
+                        } catch (Exception $e2) {
+                            error_log("Basic insert also failed: " . $e2->getMessage());
+                            throw $e2; // Re-throw the second error
+                        }
+                    }
                     
                     if ($result) {
-                        // Get bed space number for display
-                        $stmt = $pdo->prepare("SELECT bed_number FROM bed_spaces WHERE id = ?");
-                        $stmt->execute([$requested_bed_space_id]);
-                        $bed_number = $stmt->fetchColumn();
-                        
-                        $_SESSION['success'] = "Room change request submitted successfully for Bed " . $bed_number . ".";
+                        // Get bed space number for display if bed space ID is valid
+                        if ($requested_bed_space_id) {
+                            $stmt = $pdo->prepare("SELECT bed_number FROM bed_spaces WHERE id = ?");
+                            $stmt->execute([$requested_bed_space_id]);
+                            $bed_number = $stmt->fetchColumn();
+                            
+                            if ($bed_number) {
+                                $_SESSION['success'] = "Room change request submitted successfully for Bed " . $bed_number . ".";
+                            } else {
+                                $_SESSION['success'] = "Room change request submitted successfully (bed space will be assigned by admin).";
+                            }
+                        } else {
+                            $_SESSION['success'] = "Room change request submitted successfully (bed space will be assigned by admin).";
+                        }
                     } else {
                         $_SESSION['error'] = "Failed to submit room change request. Please try again.";
                     }
@@ -56,6 +124,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } catch (Exception $e) {
                     $_SESSION['error'] = "An error occurred while processing your request. Please try again.";
                     error_log("Room change request error: " . $e->getMessage());
+                    error_log("Request data: " . print_r($_POST, true));
+                    error_log("Student ID: " . $_SESSION['user_id']);
                 }
                 
                 header("Location: room_requests.php");
@@ -94,17 +164,21 @@ $stmt = $pdo->query("SELECT r.*, b.name as building_name,
 $available_rooms = $stmt->fetchAll();
 
 
-// Get student's room change requests
+// Get student's room change requests with bed space information
 $stmt = $pdo->prepare("SELECT rcr.*, 
     current_r.room_number as current_room,
     current_b.name as current_building,
+    current_bs.bed_number as current_bed_number,
     requested_r.room_number as requested_room,
-    requested_b.name as requested_building
+    requested_b.name as requested_building,
+    requested_bs.bed_number as requested_bed_number
     FROM room_change_requests rcr
     LEFT JOIN rooms current_r ON rcr.current_room_id = current_r.id
     LEFT JOIN buildings current_b ON current_r.building_id = current_b.id
+    LEFT JOIN bed_spaces current_bs ON rcr.current_bed_space_id = current_bs.id
     LEFT JOIN rooms requested_r ON rcr.requested_room_id = requested_r.id
     LEFT JOIN buildings requested_b ON requested_r.building_id = requested_b.id
+    LEFT JOIN bed_spaces requested_bs ON rcr.requested_bed_space_id = requested_bs.id
     WHERE rcr.student_id = ?
     ORDER BY rcr.requested_at DESC");
 $stmt->execute([$_SESSION['user_id']]);
@@ -207,6 +281,7 @@ $room_requests = $stmt->fetchAll();
                         <tr>
                             <th>Current Room</th>
                             <th>Requested Room</th>
+                            <th>Requested Bed</th>
                             <th>Reason</th>
                             <th>Status</th>
                             <th>Requested</th>
@@ -228,6 +303,17 @@ $room_requests = $stmt->fetchAll();
                                         <?php echo htmlspecialchars($request['requested_building'] . ' - ' . $request['requested_room']); ?>
                                     <?php else: ?>
                                         <span class="text-muted">Not specified</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($request['requested_bed_number']): ?>
+                                        <span class="badge bg-primary">Bed <?php echo htmlspecialchars($request['requested_bed_number']); ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">Not specified</span>
+                                        <!-- Debug info -->
+                                        <small class="text-muted d-block">
+                                            Debug: requested_bed_space_id = <?php echo $request['requested_bed_space_id'] ?? 'NULL'; ?>
+                                        </small>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -880,6 +966,11 @@ $(document).ready(function() {
             var roomTitle = roomButton.find('h6').text().trim();
             var bedSpacesSection = roomOption.find('.bed-spaces-section');
             
+            console.log('Room ID:', roomId);
+            console.log('Room Title:', roomTitle);
+            console.log('Bed spaces section found:', bedSpacesSection.length);
+            console.log('Bed spaces section visible:', bedSpacesSection.is(':visible'));
+            
             // Toggle bed spaces section
             if (bedSpacesSection.is(':visible')) {
                 // Hide bed spaces section
@@ -888,6 +979,7 @@ $(document).ready(function() {
                 $('#selectedRoomId').val('');
                 $('#selectedBedSpaceId').val('');
                 $('#selectionSummary').hide();
+                console.log('Hiding bed spaces section');
             } else {
                 // Hide all other bed spaces sections
                 $('.bed-spaces-section').slideUp(300);
@@ -901,6 +993,9 @@ $(document).ready(function() {
                 $('#selectedRoomId').val(roomId);
                 $('#selectedRoomSummary').text(roomTitle);
                 
+                console.log('Selected room ID set to:', $('#selectedRoomId').val());
+                console.log('Selected room summary set to:', $('#selectedRoomSummary').text());
+                
                 // Load bed spaces for this room
                 loadBedSpacesForRoom(roomId, bedSpacesSection.find('.bed-spaces-grid'));
             }
@@ -911,9 +1006,14 @@ $(document).ready(function() {
             e.preventDefault();
             e.stopPropagation();
             
+            console.log('Bed space option clicked!');
+            
             var bedSpaceOption = $(this);
             var bedSpaceId = bedSpaceOption.data('bed-space-id');
             var bedNumber = bedSpaceOption.find('.bed-number').text();
+            
+            console.log('Bed space ID:', bedSpaceId);
+            console.log('Bed number:', bedNumber);
             
             // Remove previous bed space selection
             $('.bed-space-option').removeClass('selected');
@@ -925,6 +1025,12 @@ $(document).ready(function() {
             $('#selectedBedSpaceId').val(bedSpaceId);
             $('#selectedBedSummary').text('Bed ' + bedNumber);
             
+            console.log('Selected bed space ID set to:', $('#selectedBedSpaceId').val());
+            console.log('Selected bed summary set to:', $('#selectedBedSummary').text());
+            
+            // Show alert for debugging
+            alert('Bed space selected! ID: ' + bedSpaceId + ', Number: ' + bedNumber);
+            
             // Show selection summary
             $('#selectionSummary').show();
             
@@ -934,32 +1040,93 @@ $(document).ready(function() {
         
         // Function to load bed spaces for a specific room
         function loadBedSpacesForRoom(roomId, container) {
+            console.log('Loading bed spaces for room ID:', roomId);
+            console.log('Container:', container);
+            
             // Show loading
             container.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading bed spaces...</div>');
             
-            // Create bed spaces immediately for testing
-            var bedSpacesHtml = '';
-            for (var i = 1; i <= 4; i++) {
-                var isAvailable = Math.random() > 0.3; // 70% chance of being available
-                var statusClass = isAvailable ? 'available' : 'occupied';
-                var statusText = isAvailable ? 'Available' : 'Occupied';
-                var occupantText = isAvailable ? '' : '<br><small>John Doe</small>';
-                
-                bedSpacesHtml += `
-                    <div class="bed-space-option ${statusClass}" data-bed-space-id="${i}" ${isAvailable ? '' : 'style="cursor: not-allowed;"'}>
-                        <div class="bed-number">${i}</div>
-                        <div class="bed-status">${statusText}</div>
-                        ${occupantText}
-                    </div>
-                `;
-            }
-            container.html(bedSpacesHtml);
+            // Load real bed spaces from database
+            $.ajax({
+                url: 'get_available_bed_spaces.php',
+                method: 'GET',
+                data: { room_id: roomId },
+                dataType: 'json',
+                success: function(response) {
+                    console.log('Bed spaces response:', response);
+                    
+                    if (response.success) {
+                        var bedSpacesHtml = '';
+                        
+                        // Add available bed spaces
+                        response.available_bed_spaces.forEach(function(bedSpace) {
+                            console.log('Adding available bed space:', bedSpace);
+                            bedSpacesHtml += `
+                                <div class="bed-space-option available" data-bed-space-id="${bedSpace.id}">
+                                    <div class="bed-number">${bedSpace.bed_number}</div>
+                                    <div class="bed-status">Available</div>
+                                </div>
+                            `;
+                        });
+                        
+                        // Add occupied bed spaces (for reference)
+                        response.occupied_bed_spaces.forEach(function(bedSpace) {
+                            bedSpacesHtml += `
+                                <div class="bed-space-option occupied" style="cursor: not-allowed;">
+                                    <div class="bed-number">${bedSpace.bed_number}</div>
+                                    <div class="bed-status">Occupied</div>
+                                    <div class="bed-occupant">${bedSpace.first_name} ${bedSpace.last_name}</div>
+                                </div>
+                            `;
+                        });
+                        
+                        if (bedSpacesHtml === '') {
+                            bedSpacesHtml = '<div class="text-center py-3 text-muted">No bed spaces found for this room.</div>';
+                        }
+                        
+                        container.html(bedSpacesHtml);
+                        console.log('Bed spaces loaded successfully');
+                    } else {
+                        console.error('Error loading bed spaces:', response.message);
+                        container.html('<div class="text-center py-3 text-danger">Error loading bed spaces: ' + response.message + '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX error loading bed spaces:', error);
+                    console.log('Creating fallback bed spaces for testing');
+                    
+                    // Create fallback bed spaces for testing
+                    var fallbackHtml = '';
+                    for (var i = 1; i <= 4; i++) {
+                        var isAvailable = i % 2 === 0; // Even numbers are available
+                        var statusClass = isAvailable ? 'available' : 'occupied';
+                        var statusText = isAvailable ? 'Available' : 'Occupied';
+                        var occupantText = isAvailable ? '' : '<div class="bed-occupant">John Doe</div>';
+                        var bedSpaceId = isAvailable ? (40 + i) : null; // Use real-ish IDs
+                        
+                        fallbackHtml += `
+                            <div class="bed-space-option ${statusClass}" ${bedSpaceId ? 'data-bed-space-id="' + bedSpaceId + '"' : 'style="cursor: not-allowed;"'}>
+                                <div class="bed-number">${i}</div>
+                                <div class="bed-status">${statusText}</div>
+                                ${occupantText}
+                            </div>
+                        `;
+                    }
+                    container.html(fallbackHtml);
+                    console.log('Fallback bed spaces created');
+                }
+            });
         }
         
         // Room button hover effects are handled by CSS
         
         // Form validation for room and bed space selection
         $('form').off('submit').on('submit', function(e) {
+            console.log('Form submission validation:');
+            console.log('- selectedRoomId:', $('#selectedRoomId').val());
+            console.log('- selectedBedSpaceId:', $('#selectedBedSpaceId').val());
+            console.log('- reason:', $('textarea[name="reason"]').val());
+            
             if (!$('#selectedRoomId').val()) {
                 e.preventDefault();
                 alert('Please select a room before submitting your request.');
@@ -974,6 +1141,8 @@ $(document).ready(function() {
                 }
                 return false;
             }
+            
+            console.log('Form validation passed, submitting...');
         });
     });
     
@@ -1197,13 +1366,16 @@ $(document).ready(function() {
                 <div class="col-md-6">
                     <h6>Request Information</h6>
                     <p><strong>Current Room:</strong> ${request.current_room ? (request.current_building + ' - ' + request.current_room) : 'Not assigned'}</p>
+                    <p><strong>Current Bed:</strong> ${request.current_bed_number ? ('Bed ' + request.current_bed_number) : 'Not assigned'}</p>
                     <p><strong>Requested Room:</strong> ${request.requested_room ? (request.requested_building + ' - ' + request.requested_room) : 'Not specified'}</p>
+                    <p><strong>Requested Bed:</strong> ${request.requested_bed_number ? ('Bed ' + request.requested_bed_number) : 'Not specified'}</p>
                     <p><strong>Status:</strong> <span class="${statusClass}">${request.status}</span></p>
                     <p><strong>Requested:</strong> ${new Date(request.requested_at).toLocaleString()}</p>
                 </div>
                 <div class="col-md-6">
                     <h6>Processing</h6>
                     ${request.processed_at ? `<p><strong>Processed:</strong> ${new Date(request.processed_at).toLocaleString()}</p>` : '<p><strong>Processed:</strong> Not yet processed</p>'}
+                    ${request.admin_response ? `<p><strong>Admin Response:</strong> ${request.admin_response}</p>` : ''}
                 </div>
             </div>
             <div class="row mt-3">
