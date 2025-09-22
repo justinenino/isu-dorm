@@ -16,7 +16,7 @@ define('EMAIL_REPLY_TO', 'dormitoryisue2025@gmail.com');
 define('EMAIL_SMTP_HOST', 'smtp.gmail.com');
 define('EMAIL_SMTP_PORT', 587);
 define('EMAIL_SMTP_USERNAME', 'dormitoryisue2025@gmail.com');
-define('EMAIL_SMTP_PASSWORD', 'wwtw ovek dzbt yawj'); // Gmail app password
+define('EMAIL_SMTP_PASSWORD', 'dxpm ekie zguc yliy'); // Gmail app password
 define('EMAIL_SMTP_ENCRYPTION', 'tls');
 
 /**
