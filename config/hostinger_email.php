@@ -52,15 +52,21 @@ function sendEmail($to, $subject, $body, $alt_body = '') {
         ini_set('smtp_username', EMAIL_SMTP_USERNAME);
         ini_set('smtp_password', EMAIL_SMTP_PASSWORD);
         
-        // Create email headers
+        // Create email headers with anti-spam measures
         $boundary = md5(uniqid(time()));
         $headers = array(
             'From: ' . EMAIL_FROM_NAME . ' <' . EMAIL_FROM_EMAIL . '>',
             'Reply-To: ' . EMAIL_REPLY_TO,
+            'Return-Path: ' . EMAIL_FROM_EMAIL,
             'MIME-Version: 1.0',
             'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-            'X-Mailer: PHP/' . phpversion(),
-            'X-Priority: 3'
+            'X-Mailer: ISU Dormitory Management System',
+            'X-Priority: 3',
+            'X-MSMail-Priority: Normal',
+            'Importance: Normal',
+            'List-Unsubscribe: <mailto:' . EMAIL_REPLY_TO . '>',
+            'X-Auto-Response-Suppress: All',
+            'Precedence: bulk'
         );
         
         // Create email body with both HTML and text versions
@@ -139,14 +145,14 @@ function getApprovalEmailTemplate($student, $room) {
     <head>
         <meta charset='UTF-8'>
         <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-        <title>Application Approved</title>
+        <title>Dormitory Application Approved - ISU</title>
         <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8f9fa; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .success-box { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0; }
-            .info-box { background: white; border: 1px solid #dee2e6; padding: 20px; border-radius: 5px; margin: 20px 0; }
+            .header { background: #2c3e50; color: white; padding: 30px; text-align: center; }
+            .content { background: white; padding: 30px; }
+            .success-box { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; margin: 20px 0; }
+            .info-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; margin: 20px 0; }
             .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
             .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
         </style>
@@ -154,20 +160,20 @@ function getApprovalEmailTemplate($student, $room) {
     <body>
         <div class='container'>
             <div class='header'>
-                <h1>🎉 Congratulations!</h1>
-                <h2>Your Dormitory Application Has Been Approved</h2>
+                <h1>Dormitory Application Approved</h1>
+                <p>Isabela State University - Dormitory Management</p>
             </div>
             
             <div class='content'>
+                <p>Dear {$student['first_name']} {$student['last_name']},</p>
+                
                 <div class='success-box'>
-                    <h3>✅ Application Status: APPROVED</h3>
-                    <p>Dear {$student['first_name']} {$student['last_name']},</p>
-                    <p>We are pleased to inform you that your dormitory application has been <strong>APPROVED</strong>! 
-                    You have been assigned to the following accommodation:</p>
+                    <h3>Application Status: APPROVED</h3>
+                    <p>Your dormitory application has been approved. You have been assigned to the following accommodation:</p>
                 </div>
                 
                 <div class='info-box'>
-                    <h3>🏠 Your Room Assignment</h3>
+                    <h3>Room Assignment Details</h3>
                     <p><strong>Building:</strong> {$room['building_name']}</p>
                     <p><strong>Room Number:</strong> {$room['room_number']}</p>
                     <p><strong>Bed Space:</strong> {$room['bed_space_number']}</p>
@@ -175,27 +181,27 @@ function getApprovalEmailTemplate($student, $room) {
                 </div>
                 
                 <div class='info-box'>
-                    <h3>📋 Next Steps</h3>
+                    <h3>Next Steps</h3>
                     <ol>
-                        <li>Log in to your student dashboard</li>
+                        <li>Log in to your student dashboard using your credentials</li>
                         <li>Review dormitory policies and rules</li>
                         <li>Check your room assignment details</li>
-                        <li>Contact dormitory management if you have any questions</li>
+                        <li>Contact dormitory management if you have questions</li>
                     </ol>
-                    <a href='{$login_url}' class='button'>Login to Your Dashboard</a>
+                    <p><a href='{$login_url}' class='button'>Access Student Dashboard</a></p>
                 </div>
                 
                 <div class='info-box'>
-                    <h3>📞 Contact Information</h3>
-                    <p>If you have any questions or need assistance, please contact the dormitory management office.</p>
-                    <p><strong>Email:</strong> admin@dormitory.com</p>
-                    <p><strong>Phone:</strong> (123) 456-7890</p>
+                    <h3>Contact Information</h3>
+                    <p>For questions or assistance, contact the dormitory management office.</p>
+                    <p><strong>Email:</strong> dormitoryisue2025@gmail.com</p>
+                    <p><strong>Phone:</strong> (02) 123-4567</p>
                 </div>
             </div>
             
             <div class='footer'>
-                <p>This is an automated message from the Dormitory Management System.</p>
-                <p>Please do not reply to this email.</p>
+                <p>This is an official notification from ISU Dormitory Management System.</p>
+                <p>Please add this email to your contacts to ensure future notifications reach your inbox.</p>
             </div>
         </div>
     </body>
@@ -212,34 +218,34 @@ function getApprovalEmailTextTemplate($student, $room) {
     $login_url = $protocol . '://' . $host . $script_path . '/login.php';
     
     return "
-CONGRATULATIONS! Your dormitory application has been approved!
+DORMITORY APPLICATION APPROVED - ISU
 
 Dear {$student['first_name']} {$student['last_name']},
 
-We are pleased to inform you that your dormitory application has been APPROVED! 
-You have been assigned to the following accommodation:
+Your dormitory application has been approved. You have been assigned to the following accommodation:
 
-YOUR ROOM ASSIGNMENT:
+ROOM ASSIGNMENT DETAILS:
 - Building: {$room['building_name']}
 - Room Number: {$room['room_number']}
 - Bed Space: {$room['bed_space_number']}
 - Room Type: " . (isset($room['room_type']) ? $room['room_type'] : 'Standard') . "
 
 NEXT STEPS:
-1. You can now log in to your student dashboard
+1. Log in to your student dashboard using your credentials
 2. Review dormitory policies and rules
 3. Check your room assignment details
-4. Contact dormitory management if you have any questions
+4. Contact dormitory management if you have questions
 
-LOGIN TO YOUR DASHBOARD:
+ACCESS YOUR DASHBOARD:
 {$login_url}
 
 CONTACT INFORMATION:
-If you have any questions or need assistance, please contact the dormitory management office.
-Email: admin@dormitory.com
-Phone: (123) 456-7890
+For questions or assistance, contact the dormitory management office.
+Email: dormitoryisue2025@gmail.com
+Phone: (02) 123-4567
 
-This is an automated message from the Dormitory Management System.";
+This is an official notification from ISU Dormitory Management System.
+Please add this email to your contacts to ensure future notifications reach your inbox.";
 }
 
 /**
