@@ -267,12 +267,10 @@ try {
     $stmt = $pdo->query("SELECT r.*, 
         b.name as building_name,
         b.total_floors,
-        COUNT(bs.id) as total_beds,
-        SUM(CASE WHEN bs.is_occupied = 1 THEN 1 ELSE 0 END) as occupied_beds
+        r.capacity as total_beds,
+        r.occupied as occupied_beds
         FROM rooms r
         JOIN buildings b ON r.building_id = b.id
-        LEFT JOIN bed_spaces bs ON r.id = bs.room_id
-        GROUP BY r.id
         ORDER BY b.name, r.floor_number, r.room_number");
     $rooms = $stmt->fetchAll();
     
@@ -280,7 +278,7 @@ try {
     $stmt = $pdo->query("SELECT s.id, s.first_name, s.last_name, s.school_id, s.room_id, bs.bed_number
         FROM students s
         LEFT JOIN bed_spaces bs ON s.bed_space_id = bs.id
-        WHERE s.application_status = 'approved' AND s.room_id IS NOT NULL AND s.is_deleted = 0 AND s.is_active = 1");
+        WHERE s.application_status = 'approved' AND s.room_id IS NOT NULL");
     $students_in_rooms = $stmt->fetchAll();
     
     // Group students by room
@@ -293,18 +291,44 @@ try {
         $students_by_room[$room_id][] = $student;
     }
     
-    // Update room occupancy based on active students only
-    $stmt = $pdo->query("SELECT r.id, COUNT(s.id) as active_students
-        FROM rooms r
-        LEFT JOIN students s ON r.id = s.room_id AND s.application_status = 'approved' AND s.is_deleted = 0 AND s.is_active = 1
-        GROUP BY r.id");
-    $room_occupancy = $stmt->fetchAll();
+    // First, ensure bed_spaces.is_occupied is accurate by syncing with students
+    $stmt = $pdo->query("
+        UPDATE bed_spaces bs 
+        SET is_occupied = FALSE, student_id = NULL
+        WHERE bs.is_occupied = TRUE
+    ");
+    $stmt->execute();
     
-    // Update the occupied count for each room
-    foreach ($room_occupancy as $occupancy) {
-        $stmt = $pdo->prepare("UPDATE rooms SET occupied = ? WHERE id = ?");
-        $stmt->execute([$occupancy['active_students'], $occupancy['id']]);
-    }
+    // Now update bed_spaces based on actual students
+    $stmt = $pdo->query("
+        UPDATE bed_spaces bs
+        JOIN students s ON bs.id = s.bed_space_id
+        SET bs.is_occupied = TRUE, bs.student_id = s.id
+        WHERE s.application_status = 'approved'
+    ");
+    $stmt->execute();
+    
+    // Update room occupancy based on bed spaces (which should now be accurate)
+    $stmt = $pdo->query("
+        UPDATE rooms r 
+        SET occupied = (
+            SELECT COUNT(*) 
+            FROM bed_spaces bs 
+            WHERE bs.room_id = r.id AND bs.is_occupied = TRUE
+        )
+    ");
+    $stmt->execute();
+    
+    // Now update statuses based on capacity vs occupied
+    $stmt = $pdo->query("
+        UPDATE rooms 
+        SET status = CASE 
+            WHEN occupied >= capacity THEN 'full'
+            WHEN occupied > 0 THEN 'available'
+            ELSE 'available'
+        END
+    ");
+    $stmt->execute();
     
     // Recalculate building statistics with updated occupancy
     $stmt = $pdo->query("SELECT b.*, 
@@ -328,6 +352,9 @@ try {
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-bed"></i> Room Management</h2>
     <div>
+        <button class="btn btn-info me-2" onclick="refreshRoomStatuses()">
+            <i class="fas fa-sync-alt"></i> Refresh Statuses
+        </button>
         <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addBuildingModal">
             <i class="fas fa-building"></i> Add Building
         </button>
@@ -960,13 +987,17 @@ function viewRoomStudents(roomId, roomNumber) {
         method: 'GET',
         data: { room_id: roomId },
         dataType: 'json',
+        xhrFields: {
+            withCredentials: true
+        },
         success: function(response) {
             if (response.success) {
                 var studentsHtml = '';
                 if (response.students.length > 0) {
                     studentsHtml = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Name</th><th>School ID</th><th>Bed Number</th><th>Contact</th></tr></thead><tbody>';
                     response.students.forEach(function(student) {
-                        studentsHtml += '<tr><td>' + student.first_name + ' ' + student.last_name + '</td><td>' + student.school_id + '</td><td>Bed ' + (student.bed_number || 'Not assigned') + '</td><td>' + student.email + '</td></tr>';
+                        var bedDisplay = student.bed_number ? 'Bed ' + student.bed_number : 'Not assigned';
+                        studentsHtml += '<tr><td>' + student.first_name + ' ' + student.last_name + '</td><td>' + student.school_id + '</td><td>' + bedDisplay + '</td><td>' + student.email + '</td></tr>';
                     });
                     studentsHtml += '</tbody></table></div>';
                 } else {
@@ -1007,6 +1038,39 @@ function deleteBuilding(buildingId, buildingName) {
     $('#deleteBuildingId').val(buildingId);
     $('#deleteBuildingName').text(buildingName);
     $('#deleteBuildingModal').modal('show');
+}
+
+// Refresh room statuses
+function refreshRoomStatuses() {
+    if (confirm('This will refresh all room statuses based on current occupancy. Continue?')) {
+        // Show loading
+        var button = event.target;
+        var originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+        button.disabled = true;
+        
+        // Make AJAX call to refresh statuses
+        $.ajax({
+            url: 'refresh_room_statuses.php',
+            method: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    alert('Room statuses refreshed successfully!');
+                    location.reload(); // Reload page to show updated statuses
+                } else {
+                    alert('Error refreshing statuses: ' + response.message);
+                }
+            },
+            error: function() {
+                alert('Error refreshing room statuses. Please try again.');
+            },
+            complete: function() {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+    }
 }
 </script>
 
