@@ -150,9 +150,20 @@ if (!$student) {
 <div class="row">
     <div class="col-12">
         <h6><i class="fas fa-paperclip"></i> Attachment</h6>
-        <a href="../<?php echo htmlspecialchars($student['attachment_file']); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-file-pdf"></i> View Attachment
-        </a>
+        <?php 
+        $attachment_path = '../' . $student['attachment_file'];
+        $full_path = dirname(__DIR__) . '/' . $student['attachment_file'];
+        if (file_exists($full_path)): ?>
+            <a href="<?php echo htmlspecialchars($attachment_path); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-file-pdf"></i> View Attachment
+            </a>
+        <?php else: ?>
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> 
+                <strong>File Not Found:</strong> The attachment file "<?php echo htmlspecialchars(basename($student['attachment_file'])); ?>" could not be located.
+                <br><small class="text-muted">Expected path: <?php echo htmlspecialchars($student['attachment_file']); ?></small>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
