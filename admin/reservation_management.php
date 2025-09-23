@@ -147,7 +147,7 @@ $page_title = 'Online Reservation Management';
 include 'includes/header.php';
 
 // Get filter parameter
-$filter = $_GET['filter'] ?? 'active'; // active, archived, all
+$filter = $_GET['filter'] ?? 'active'; // active, archived, all, pending, approved, rejected
 
 // Get students based on filter
 $pdo = getConnection();
@@ -158,6 +158,12 @@ if ($filter === 'active') {
     $where_clause = "WHERE s.is_deleted = 0";
 } elseif ($filter === 'archived') {
     $where_clause = "WHERE s.is_deleted = 1";
+} elseif ($filter === 'pending') {
+    $where_clause = "WHERE s.is_deleted = 0 AND s.application_status = 'pending'";
+} elseif ($filter === 'approved') {
+    $where_clause = "WHERE s.is_deleted = 0 AND s.application_status = 'approved'";
+} elseif ($filter === 'rejected') {
+    $where_clause = "WHERE s.is_deleted = 0 AND s.application_status = 'rejected'";
 }
 // If filter is 'all', no WHERE clause needed
 
@@ -212,7 +218,16 @@ $available_rooms = $stmt->fetchAll();
                             <a href="?filter=active" class="btn <?php echo $filter === 'active' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                 <i class="fas fa-users"></i> Active Students
                             </a>
-                            <a href="?filter=archived" class="btn <?php echo $filter === 'archived' ? 'btn-warning' : 'btn-outline-warning'; ?>">
+                            <a href="?filter=pending" class="btn <?php echo $filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'; ?>">
+                                <i class="fas fa-clock"></i> Pending Applications
+                            </a>
+                            <a href="?filter=approved" class="btn <?php echo $filter === 'approved' ? 'btn-success' : 'btn-outline-success'; ?>">
+                                <i class="fas fa-check-circle"></i> Approved Students
+                            </a>
+                            <a href="?filter=rejected" class="btn <?php echo $filter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'; ?>">
+                                <i class="fas fa-times-circle"></i> Rejected Applications
+                            </a>
+                            <a href="?filter=archived" class="btn <?php echo $filter === 'archived' ? 'btn-secondary' : 'btn-outline-secondary'; ?>">
                                 <i class="fas fa-archive"></i> Archived Students
                             </a>
                             <a href="?filter=all" class="btn <?php echo $filter === 'all' ? 'btn-info' : 'btn-outline-info'; ?>">
@@ -260,10 +275,46 @@ $available_rooms = $stmt->fetchAll();
     </div>
 </div>
 
+<!-- Current Filter Info -->
+<?php if ($filter !== 'all'): ?>
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Currently showing:</strong> 
+            <?php
+            $filter_labels = [
+                'active' => 'Active Students (all statuses)',
+                'pending' => 'Pending Applications (awaiting approval)',
+                'approved' => 'Approved Students (room assigned)',
+                'rejected' => 'Rejected Applications',
+                'archived' => 'Archived Students (access revoked)'
+            ];
+            echo $filter_labels[$filter] ?? ucfirst($filter) . ' Students';
+            ?>
+            (<?php echo count($students); ?> total)
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Student Applications Table -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0"><i class="fas fa-users"></i> Student Applications</h5>
+        <h5 class="mb-0">
+            <i class="fas fa-users"></i> 
+            <?php
+            $table_titles = [
+                'active' => 'Active Student Applications',
+                'pending' => 'Pending Applications (Awaiting Approval)',
+                'approved' => 'Approved Students (Room Assigned)',
+                'rejected' => 'Rejected Applications',
+                'archived' => 'Archived Students',
+                'all' => 'All Student Applications'
+            ];
+            echo $table_titles[$filter] ?? 'Student Applications';
+            ?>
+        </h5>
     </div>
     <div class="card-body">
         <div class="table-responsive">
