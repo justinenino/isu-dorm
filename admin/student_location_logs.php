@@ -5,19 +5,6 @@ require_once '../config/database.php';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
-            case 'update_location':
-                $student_id = $_POST['student_id'];
-                $location_status = $_POST['location_status'];
-                
-                $pdo = getConnection();
-                $stmt = $pdo->prepare("INSERT INTO student_location_logs (student_id, location_status) VALUES (?, ?)");
-                $stmt->execute([$student_id, $location_status]);
-                
-                $_SESSION['success'] = "Student location updated successfully.";
-                header("Location: student_location_logs.php");
-                exit;
-                break;
-                
             case 'flush_logs':
                 // Flush all logs older than 7 days
                 $pdo = getConnection();
@@ -121,18 +108,13 @@ $stmt = $pdo->query("SELECT
     AND timestamp >= DATE_SUB(NOW(), INTERVAL 24 HOUR)");
 $today_stats = $stmt->fetch();
 
-// Get all active students for location update
-$students = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name) as name, school_id FROM students WHERE application_status = 'approved' AND is_deleted = 0 AND is_active = 1 ORDER BY first_name")->fetchAll();
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="fas fa-map-marker-alt"></i> Student Location Logs</h2>
     <div>
-        <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#flushLogsModal">
+        <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#flushLogsModal">
             <i class="fas fa-trash"></i> Flush Old Logs
-        </button>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateLocationModal">
-            <i class="fas fa-plus"></i> Update Location
         </button>
     </div>
 </div>
@@ -444,74 +426,6 @@ $students = $pdo->query("SELECT id, CONCAT(first_name, ' ', last_name) as name, 
     </div>
 </div>
 
-<!-- Update Location Modal -->
-<div class="modal fade" id="updateLocationModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-gradient-primary text-white border-0">
-                <h5 class="modal-title">
-                    <i class="fas fa-map-marker-alt me-2"></i>Update Student Location
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="">
-                <div class="modal-body p-4">
-                    <input type="hidden" name="action" value="update_location">
-                    
-                    <div class="mb-4">
-                        <label for="student_id" class="form-label fw-semibold">
-                            <i class="fas fa-user me-2 text-primary"></i>Select Student
-                        </label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light border-end-0">
-                                <i class="fas fa-user text-muted"></i>
-                            </span>
-                            <select class="form-select border-start-0" id="student_id" name="student_id" required>
-                                <option value="">Choose a student...</option>
-                                <?php foreach ($students as $student): ?>
-                                    <option value="<?php echo $student['id']; ?>">
-                                        <?php echo htmlspecialchars($student['name'] . ' (' . $student['school_id'] . ')'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label for="location_status" class="form-label fw-semibold">
-                            <i class="fas fa-map-marker-alt me-2 text-primary"></i>Location Status
-                        </label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-light border-end-0">
-                                <i class="fas fa-map-marker-alt text-muted"></i>
-                            </span>
-                            <select class="form-select border-start-0" id="location_status" name="location_status" required>
-                                <option value="">Select location...</option>
-                                <option value="inside_dormitory">
-                                    <i class="fas fa-home"></i> Inside Dormitory
-                                </option>
-                                <option value="in_class">
-                                    <i class="fas fa-graduation-cap"></i> In Class
-                                </option>
-                                <option value="outside_campus">
-                                    <i class="fas fa-external-link-alt"></i> Outside Campus
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer border-0 p-4">
-                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
-                        <i class="fas fa-times me-1"></i> Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary px-4">
-                        <i class="fas fa-save me-1"></i> Update Location
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Flush Logs Modal -->
 <div class="modal fade" id="flushLogsModal" tabindex="-1">
@@ -597,5 +511,4 @@ function viewStudentLogs(studentId) {
 }
 </script>
 
-<?php include 'includes/footer.php'; ?> 
 <?php include 'includes/footer.php'; ?> 

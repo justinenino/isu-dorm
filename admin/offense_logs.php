@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     
                     if (empty($room_students)) {
                         $_SESSION['error'] = "No students found in the selected room.";
-                        header("Location: offenses.php");
+                        header("Location: offense_logs.php");
                         exit;
                     }
                     
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['success'] = "Offense logged successfully.";
                 }
                 
-                header("Location: offenses.php");
+                header("Location: offense_logs.php");
                 exit;
                 break;
                 
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Validate inputs
                 if (empty($offense_id) || empty($status) || empty($admin_response)) {
                     $_SESSION['error'] = "All fields are required.";
-                    header("Location: offenses.php");
+                    header("Location: offense_logs.php");
                     exit;
                 }
                 
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if (!$check_stmt->fetch()) {
                     $_SESSION['error'] = "Offense not found.";
-                    header("Location: offenses.php");
+                    header("Location: offense_logs.php");
                     exit;
                 }
                 
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $_SESSION['error'] = "Failed to update offense status. No rows were affected.";
                 }
                 
-                header("Location: offenses.php");
+                header("Location: offense_logs.php");
                 exit;
                 break;
         }
