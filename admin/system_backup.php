@@ -10,16 +10,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         switch ($_POST['action']) {
             case 'download_backup':
                 // Create backup and download
-                $backup_file = createBackup();
-                if ($backup_file) {
-                    header('Content-Type: application/zip');
-                    header('Content-Disposition: attachment; filename="dormitory_backup_' . date('Y-m-d_H-i-s') . '.zip"');
-                    header('Content-Length: ' . filesize($backup_file));
-                    readfile($backup_file);
-                    unlink($backup_file); // Delete temporary file
-                    exit;
-                } else {
-                    $error_message = 'Failed to create backup file.';
+                try {
+                    $backup_file = createBackup();
+                    if ($backup_file && file_exists($backup_file)) {
+                        // Clear any previous output
+                        if (ob_get_level()) {
+                            ob_end_clean();
+                        }
+                        
+                        header('Content-Type: application/zip');
+                        header('Content-Disposition: attachment; filename="dormitory_backup_' . date('Y-m-d_H-i-s') . '.zip"');
+                        header('Content-Length: ' . filesize($backup_file));
+                        header('Cache-Control: no-cache, must-revalidate');
+                        header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
+                        
+                        readfile($backup_file);
+                        unlink($backup_file); // Delete temporary file
+                        exit;
+                    } else {
+                        $error_message = 'Failed to create backup file. Please check server logs for details.';
+                        error_log("Backup creation failed - file not created or doesn't exist");
+                    }
+                } catch (Exception $e) {
+                    $error_message = 'Backup failed: ' . $e->getMessage();
+                    error_log("Backup download error: " . $e->getMessage());
                 }
                 break;
                 
@@ -76,44 +90,129 @@ $result = $stmt->fetch();
 $db_size = $result['DB Size in MB'] ?? 0;
 
 function createBackup() {
-    $backup_dir = '../backups/';
-    if (!is_dir($backup_dir)) {
-        mkdir($backup_dir, 0755, true);
-    }
-    
-    $timestamp = date('Y-m-d_H-i-s');
-    $backup_file = $backup_dir . 'dormitory_backup_' . $timestamp . '.zip';
-    
-    // Create database dump
-    $db_dump_file = $backup_dir . 'database_dump_' . $timestamp . '.sql';
-    $command = "mysqldump -h " . DB_HOST . " -u " . DB_USERNAME . " -p" . DB_PASSWORD . " " . DB_NAME . " > " . $db_dump_file;
-    exec($command, $output, $return_var);
-    
-    if ($return_var !== 0) {
-        return false;
-    }
-    
-    // Create ZIP file
-    $zip = new ZipArchive();
-    if ($zip->open($backup_file, ZipArchive::CREATE) === TRUE) {
+    try {
+        $backup_dir = '../backups/';
+        if (!is_dir($backup_dir)) {
+            if (!mkdir($backup_dir, 0755, true)) {
+                error_log("Failed to create backup directory: $backup_dir");
+                return false;
+            }
+        }
+        
+        $timestamp = date('Y-m-d_H-i-s');
+        $backup_file = $backup_dir . 'dormitory_backup_' . $timestamp . '.zip';
+        
+        // Create database dump using PHP instead of mysqldump command
+        $db_dump_file = $backup_dir . 'database_dump_' . $timestamp . '.sql';
+        
+        if (!createDatabaseDump($db_dump_file)) {
+            error_log("Failed to create database dump");
+            return false;
+        }
+        
+        // Create ZIP file
+        if (!class_exists('ZipArchive')) {
+            error_log("ZipArchive class not available");
+            return false;
+        }
+        
+        $zip = new ZipArchive();
+        $result = $zip->open($backup_file, ZipArchive::CREATE);
+        
+        if ($result !== TRUE) {
+            error_log("Failed to create ZIP file: $result");
+            return false;
+        }
+        
         // Add database dump
-        $zip->addFile($db_dump_file, 'database/dormitory_db.sql');
+        if (file_exists($db_dump_file)) {
+            $zip->addFile($db_dump_file, 'database/dormitory_db.sql');
+        }
         
-        // Add project files (excluding backups and uploads)
-        $project_root = '../';
-        $exclude_dirs = ['backups', 'uploads', 'node_modules', '.git'];
+        // Add essential project files only (to avoid large backups)
+        $essential_files = [
+            'config/database.php',
+            'config/timezone.php',
+            'login.php',
+            'register.php',
+            'index.php',
+            'admin/get_student_details.php'  // Include the fixed PDF attachment file
+        ];
         
-        addFolderToZip($zip, $project_root, '', $exclude_dirs);
+        foreach ($essential_files as $file) {
+            $file_path = '../' . $file;
+            if (file_exists($file_path)) {
+                $zip->addFile($file_path, $file);
+            }
+        }
         
         $zip->close();
         
         // Clean up database dump file
-        unlink($db_dump_file);
+        if (file_exists($db_dump_file)) {
+            unlink($db_dump_file);
+        }
         
         return $backup_file;
+        
+    } catch (Exception $e) {
+        error_log("Backup creation failed: " . $e->getMessage());
+        return false;
     }
-    
-    return false;
+}
+
+function createDatabaseDump($dump_file) {
+    try {
+        $pdo = getConnection();
+        
+        // Get all tables
+        $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+        
+        $dump_content = "-- Database dump created on " . date('Y-m-d H:i:s') . "\n";
+        $dump_content .= "-- Host: " . DB_HOST . " Database: " . DB_NAME . "\n\n";
+        $dump_content .= "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n";
+        $dump_content .= "SET AUTOCOMMIT = 0;\n";
+        $dump_content .= "START TRANSACTION;\n";
+        $dump_content .= "SET time_zone = \"+00:00\";\n\n";
+        
+        foreach ($tables as $table) {
+            // Get table structure
+            $create_table = $pdo->query("SHOW CREATE TABLE `$table`")->fetch();
+            $dump_content .= "-- Table structure for table `$table`\n";
+            $dump_content .= "DROP TABLE IF EXISTS `$table`;\n";
+            $dump_content .= $create_table['Create Table'] . ";\n\n";
+            
+            // Get table data
+            $rows = $pdo->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($rows)) {
+                $dump_content .= "-- Data for table `$table`\n";
+                $dump_content .= "INSERT INTO `$table` VALUES ";
+                
+                $values = [];
+                foreach ($rows as $row) {
+                    $row_values = [];
+                    foreach ($row as $value) {
+                        if ($value === null) {
+                            $row_values[] = 'NULL';
+                        } else {
+                            $row_values[] = "'" . addslashes($value) . "'";
+                        }
+                    }
+                    $values[] = '(' . implode(',', $row_values) . ')';
+                }
+                
+                $dump_content .= implode(',', $values) . ";\n\n";
+            }
+        }
+        
+        $dump_content .= "COMMIT;\n";
+        
+        return file_put_contents($dump_file, $dump_content) !== false;
+        
+    } catch (Exception $e) {
+        error_log("Database dump creation failed: " . $e->getMessage());
+        return false;
+    }
 }
 
 function addFolderToZip($zip, $folder, $relative_path, $exclude_dirs) {
