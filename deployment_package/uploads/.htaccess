@@ -1,0 +1,27 @@
+# Allow access to uploaded files
+<Files "*">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+# Security: Prevent execution of PHP files in uploads directory
+<Files "*.php">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Security: Prevent execution of other executable files
+<Files "*.exe">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+<Files "*.bat">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+<Files "*.cmd">
+    Order Deny,Allow
+    Deny from all
+</Files>
