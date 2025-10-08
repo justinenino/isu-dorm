@@ -33,6 +33,102 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
+				case 'log_offense':
+					$complaint_id = $_POST['complaint_id'];
+					$student_id = $_POST['student_id'];
+					$offense_type = $_POST['offense_type'];
+					$severity = $_POST['severity'];
+					$action_taken = $_POST['action_taken'];
+					$reported_by = $_POST['reported_by'];
+					
+					$pdo = getConnection();
+					
+					// Get complaint details
+					$stmt = $pdo->prepare("SELECT * FROM complaints WHERE id = ?");
+					$stmt->execute([$complaint_id]);
+					$complaint = $stmt->fetch();
+					
+					if ($complaint) {
+						$target_type = $_POST['target_type'] ?? 'general';
+						$target_value = $_POST['target_value'] ?? '';
+						
+						$offense_count = 0;
+						
+						if ($target_type === 'room') {
+							// Create offense for all students in the target room
+							$stmt = $pdo->prepare("SELECT s.id
+								FROM students s 
+								JOIN rooms r ON s.room_id = r.id 
+								WHERE r.room_number = ? AND s.application_status = 'approved'");
+							$stmt->execute([$target_value]);
+							$room_students = $stmt->fetchAll();
+							
+							if (!empty($room_students)) {
+								$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
+								$has_complaint_id = $check_column->rowCount() > 0;
+								
+								foreach ($room_students as $student) {
+									if ($has_complaint_id) {
+										$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+										$stmt->execute([$student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
+									} else {
+										$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+										$stmt->execute([$student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
+									}
+									$offense_count++;
+								}
+								$_SESSION['success'] = "Offense logged for " . $offense_count . " student(s) in Room " . $target_value . ".";
+							} else {
+								$_SESSION['error'] = "No students found in Room " . $target_value;
+								header("Location: complaints_management.php");
+								exit;
+							}
+						} elseif ($target_type === 'person') {
+							// Create offense for specific person
+							$stmt = $pdo->prepare("SELECT s.id 
+								FROM students s 
+								WHERE CONCAT(s.first_name, ' ', s.last_name) = ? AND s.application_status = 'approved'");
+							$stmt->execute([$target_value]);
+							$target_student = $stmt->fetch();
+							
+							if ($target_student) {
+								$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
+								$has_complaint_id = $check_column->rowCount() > 0;
+								
+								if ($has_complaint_id) {
+									$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+									$stmt->execute([$target_student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
+								} else {
+									$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+									$stmt->execute([$target_student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
+								}
+								$_SESSION['success'] = "Offense logged for " . $target_value . ".";
+							} else {
+								$_SESSION['error'] = "Student '" . $target_value . "' not found.";
+								header("Location: complaints_management.php");
+								exit;
+							}
+						} else {
+							// General complaint - create offense for complaining student only
+							$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
+							$has_complaint_id = $check_column->rowCount() > 0;
+							
+							if ($has_complaint_id) {
+								$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+								$stmt->execute([$student_id, $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
+							} else {
+								$stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+								$stmt->execute([$student_id, $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
+							}
+							$_SESSION['success'] = "Offense logged for the complaining student.";
+						}
+					} else {
+						$_SESSION['error'] = "Complaint not found.";
+					}
+					
+					header("Location: complaints_management.php");
+					exit;
+					break;
             case 'update_status':
                 $complaint_id = $_POST['complaint_id'];
                 $status = $_POST['status'];
@@ -53,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $pdo = getConnection();
                     
                     // Delete all complaints and related data
-                    $pdo->exec("DELETE FROM offense_logs WHERE complaint_id IS NOT NULL");
+                    $pdo->exec("DELETE FROM offenses WHERE complaint_id IS NOT NULL");
                     $pdo->exec("DELETE FROM complaints");
                     
                     $_SESSION['success'] = "All complaints and related data have been deleted successfully.";
@@ -89,25 +185,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $offense_message = "";
                     
                     if ($target_type === 'room') {
-                        // Create offense for all students in the target room
+                        // Create offense for all students in the target room within a specific building
+                        $target_building_id = $_POST['target_building'] ?? null;
+                        if (!$target_building_id) {
+                            $_SESSION['error'] = "Please select a building for the targeted room.";
+                            header("Location: complaints_management.php");
+                            exit;
+                        }
                         $stmt = $pdo->prepare("SELECT s.id, s.first_name, s.last_name 
                             FROM students s 
                             JOIN rooms r ON s.room_id = r.id 
-                            WHERE r.room_number = ? AND s.application_status = 'approved'");
-                        $stmt->execute([$target_value]);
+                            WHERE r.room_number = ? AND r.building_id = ? AND s.application_status = 'approved'");
+                        $stmt->execute([$target_value, $target_building_id]);
                         $room_students = $stmt->fetchAll();
                         
                         if (!empty($room_students)) {
-                            // Check if complaint_id column exists
-                            $check_column = $pdo->query("SHOW COLUMNS FROM offense_logs LIKE 'complaint_id'");
+                            // Check if complaint_id column exists in offenses table
+                            $check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
                             $has_complaint_id = $check_column->rowCount() > 0;
                             
                             foreach ($room_students as $student) {
                                 if ($has_complaint_id) {
-                                    $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                     $stmt->execute([$student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
                                 } else {
-                                    $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+                                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
                                     $stmt->execute([$student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
                                 }
                                 $offense_count++;
@@ -128,15 +230,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         $target_student = $stmt->fetch();
                         
                         if ($target_student) {
-                            // Check if complaint_id column exists
-                            $check_column = $pdo->query("SHOW COLUMNS FROM offense_logs LIKE 'complaint_id'");
+                            // Check if complaint_id column exists in offenses table
+                            $check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
                             $has_complaint_id = $check_column->rowCount() > 0;
                             
                             if ($has_complaint_id) {
-                                $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                                $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
                                 $stmt->execute([$target_student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
                             } else {
-                                $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+                                $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
                                 $stmt->execute([$target_student['id'], $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
                             }
                             $offense_count = 1;
@@ -149,14 +251,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         
                     } else {
                         // General complaint - create offense for complaining student only
-                        $check_column = $pdo->query("SHOW COLUMNS FROM offense_logs LIKE 'complaint_id'");
+                        $check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
                         $has_complaint_id = $check_column->rowCount() > 0;
                         
                         if ($has_complaint_id) {
-                            $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                            $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by, complaint_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
                             $stmt->execute([$student_id, $offense_type, $complaint['description'], $severity, $action_taken, $reported_by, $complaint_id]);
                         } else {
-                            $stmt = $pdo->prepare("INSERT INTO offense_logs (student_id, offense_type, description, severity, action_taken, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
+                            $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
                             $stmt->execute([$student_id, $offense_type, $complaint['description'], $severity, $action_taken, $reported_by]);
                         }
                         $offense_count = 1;
@@ -184,8 +286,8 @@ include 'includes/header.php';
 
 $pdo = getConnection();
 
-// Check if complaint_id column exists in offense_logs table
-$check_column = $pdo->query("SHOW COLUMNS FROM offense_logs LIKE 'complaint_id'");
+// Check if complaint_id column exists in offenses table
+$check_column = $pdo->query("SHOW COLUMNS FROM offenses LIKE 'complaint_id'");
 $has_complaint_id = $check_column->rowCount() > 0;
 
 // Get complaints with student details
@@ -309,6 +411,10 @@ $complaints = $stmt->fetchAll();
                                             data-complaint-id="<?php echo $complaint['id']; ?>">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#logOffenseModal" 
+                                            data-complaint='<?php echo json_encode($complaint); ?>'>
+                                        <i class="fas fa-plus"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#convertToOffenseModal" 
                                             data-complaint='<?php echo json_encode($complaint); ?>'>
                                         <i class="fas fa-exclamation-triangle"></i>
@@ -387,6 +493,7 @@ $complaints = $stmt->fetchAll();
                 <input type="hidden" name="student_id" id="convertStudentId">
                 <input type="hidden" name="target_type" id="hiddenTargetType">
                 <input type="hidden" name="target_value" id="hiddenTargetValue">
+                <input type="hidden" name="target_building" id="hiddenTargetBuilding">
                 <div class="modal-body">
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i>
@@ -443,6 +550,69 @@ $complaints = $stmt->fetchAll();
         </div>
     </div>
 </div>
+
+<!-- Log Offense (without closing complaint) Modal -->
+<div class="modal fade" id="logOffenseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Log Offense (Keep Complaint Open)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action" value="log_offense">
+                <input type="hidden" name="complaint_id" id="logComplaintId">
+                <input type="hidden" name="student_id" id="logStudentId">
+                <input type="hidden" name="target_type" id="logHiddenTargetType">
+                <input type="hidden" name="target_value" id="logHiddenTargetValue">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Complaint Subject</label>
+                        <input type="text" id="logComplaintSubject" class="form-control" readonly>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Offense Type</label>
+                            <select name="offense_type" class="form-select" required>
+                                <option value="">Select Type</option>
+                                <option value="Curfew Violation">Curfew Violation</option>
+                                <option value="Noise Violation">Noise Violation</option>
+                                <option value="Property Damage">Property Damage</option>
+                                <option value="Unauthorized Visitors">Unauthorized Visitors</option>
+                                <option value="Smoking/Vaping">Smoking/Vaping</option>
+                                <option value="Alcohol/Drugs">Alcohol/Drugs</option>
+                                <option value="Fighting">Fighting</option>
+                                <option value="Theft">Theft</option>
+                                <option value="Disruptive Behavior">Disruptive Behavior</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Severity</label>
+                            <select name="severity" class="form-select" required>
+                                <option value="minor">Minor</option>
+                                <option value="major">Major</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reported By</label>
+                        <input type="text" name="reported_by" class="form-control" required placeholder="Admin name or identifier">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Action Taken</label>
+                        <textarea name="action_taken" class="form-control" rows="4" required placeholder="Describe the action taken or disciplinary measure"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Log Offense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+ </div>
 
 <!-- Flush Complaints Data Confirmation Modal -->
 <div class="modal fade" id="flushComplaintsModal" tabindex="-1">
@@ -544,17 +714,37 @@ $(document).ready(function() {
         // Set hidden target information based on complaint subject
         $('#hiddenTargetType').val(targetInfo.type);
         $('#hiddenTargetValue').val(targetInfo.value || '');
+        $('#hiddenTargetBuilding').val(targetInfo.building_id || '');
         
+    });
+    
+    // Handle log offense modal (keep complaint open)
+    $('#logOffenseModal').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var complaint = button.data('complaint');
+        var modal = $(this);
+        
+        $('#logComplaintId').val(complaint.id);
+        $('#logStudentId').val(complaint.student_id);
+        $('#logComplaintSubject').val(complaint.subject);
+        
+        var subject = complaint.subject;
+        var targetInfo = analyzeComplaintSubject(subject);
+        
+        $('#logHiddenTargetType').val(targetInfo.type);
+        $('#logHiddenTargetValue').val(targetInfo.value || '');
     });
     
     // Function to analyze complaint subject
     function analyzeComplaintSubject(subject) {
         // Check if subject contains "(Regarding Room X)" pattern
-        var roomMatch = subject.match(/\(Regarding Room (\d+)\)/);
+        var roomMatch = subject.match(/\(Regarding ([^-]+) - Room (\d+)\)/);
         if (roomMatch) {
+            // roomMatch[1] is building name, roomMatch[2] is room number
             return {
                 type: 'room',
-                value: roomMatch[1]
+                value: roomMatch[2],
+                building_name: roomMatch[1].trim()
             };
         }
         
@@ -573,5 +763,25 @@ $(document).ready(function() {
             value: null
         };
     }
+
+    // Resolve building_name to id for hidden input if present
+    function resolveBuildingIdByName(name) {
+        var buildings = <?php echo json_encode($pdo->query("SELECT id, name FROM buildings ORDER BY name")->fetchAll()); ?>;
+        var found = buildings.find(function(b){ return b.name === name; });
+        return found ? found.id : '';
+    }
+
+    // When showing convert modal, map building name -> id
+    $('#convertToOffenseModal').on('show.bs.modal', function() {
+        var bName = $('#hiddenTargetBuilding').val(); // may be empty initially
+        if (!bName && $('#convertComplaintSubject').val()) {
+            var m = $('#convertComplaintSubject').val().match(/\(Regarding ([^-]+) - Room/);
+            if (m) bName = m[1].trim();
+        }
+        if (bName) {
+            var id = resolveBuildingIdByName(bName);
+            if (id) $('#hiddenTargetBuilding').val(id);
+        }
+    });
 });
 </script> 

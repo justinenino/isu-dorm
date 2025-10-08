@@ -2,97 +2,7 @@
 require_once '../config/database.php';
 requireAdmin();
 
-// Handle form submissions
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'add_offense':
-                $student_id = $_POST['student_id'];
-                $offense_type = $_POST['offense_type'];
-                $description = $_POST['description'];
-                $severity = $_POST['severity'];
-                $admin_notes = $_POST['admin_notes'];
-                $reported_by = $_POST['reported_by'];
-                $room_id = $_POST['room_id'] ?? null;
-                
-                $pdo = getConnection();
-                
-                // If room_id is provided, log offense for all students in that room
-                if ($room_id && $room_id != '') {
-                    // Get all active students in the room
-                    $stmt = $pdo->prepare("SELECT id FROM students WHERE room_id = ? AND application_status = 'approved' AND is_deleted = 0 AND is_active = 1");
-                    $stmt->execute([$room_id]);
-                    $room_students = $stmt->fetchAll();
-                    
-                    if (empty($room_students)) {
-                        $_SESSION['error'] = "No students found in the selected room.";
-                        header("Location: offense_logs.php");
-                        exit;
-                    }
-                    
-                    // Log offense for each student in the room
-                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
-                    foreach ($room_students as $student) {
-                        $stmt->execute([$student['id'], $offense_type, $description, $severity, $admin_notes, $reported_by]);
-                    }
-                    
-                    $_SESSION['success'] = "Offense logged for " . count($room_students) . " student(s) in the room.";
-                } else {
-                    // Log offense for specific student
-                    $stmt = $pdo->prepare("INSERT INTO offenses (student_id, offense_type, description, severity, admin_notes, reported_by) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$student_id, $offense_type, $description, $severity, $admin_notes, $reported_by]);
-                    
-                    $_SESSION['success'] = "Offense logged successfully.";
-                }
-                
-                header("Location: offense_logs.php");
-                exit;
-                break;
-                
-            case 'update_status':
-                $offense_id = $_POST['offense_id'];
-                $status = $_POST['status'];
-                $admin_response = $_POST['admin_response'];
-                
-                // Validate inputs
-                if (empty($offense_id) || empty($status) || empty($admin_response)) {
-                    $_SESSION['error'] = "All fields are required.";
-                    header("Location: offense_logs.php");
-                    exit;
-                }
-                
-                $pdo = getConnection();
-                
-                // First, check if the offense exists
-                $check_stmt = $pdo->prepare("SELECT id FROM offenses WHERE id = ?");
-                $check_stmt->execute([$offense_id]);
-                
-                if (!$check_stmt->fetch()) {
-                    $_SESSION['error'] = "Offense not found.";
-                    header("Location: offense_logs.php");
-                    exit;
-                }
-                
-                // Update the offense
-                $stmt = $pdo->prepare("UPDATE offenses SET status = ?, admin_notes = CONCAT(IFNULL(admin_notes, ''), '\n\nAdmin Response: ', ?), resolved_at = ? WHERE id = ?");
-                $resolved_at = ($status == 'resolved') ? date('Y-m-d H:i:s') : null;
-                
-                $result = $stmt->execute([$status, $admin_response, $resolved_at, $offense_id]);
-                
-                if ($result && $stmt->rowCount() > 0) {
-                    $_SESSION['success'] = "Offense status updated successfully from " . $status . " to " . $status . ".";
-                } else {
-                    $_SESSION['error'] = "Failed to update offense status. No rows were affected.";
-                }
-                
-                header("Location: offense_logs.php");
-                exit;
-                break;
-        }
-    }
-}
-
-$page_title = 'Offense Logs Management';
+$page_title = 'Offense Logs (View Only)';
 include 'includes/header.php';
 
 $pdo = getConnection();
@@ -210,10 +120,7 @@ $offenses = $stmt->fetchAll();
 <?php endif; ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-exclamation-triangle"></i> Offense Logs Management</h2>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOffenseModal">
-        <i class="fas fa-plus"></i> Log New Offense
-    </button>
+    <h2><i class="fas fa-exclamation-triangle"></i> Offense Logs</h2>
 </div>
 
 <!-- Search and Filter Section -->
@@ -386,12 +293,6 @@ $offenses = $stmt->fetchAll();
                                         data-offense='<?php echo json_encode($offense); ?>'>
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <?php if ($offense['status'] == 'pending'): ?>
-                                    <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#updateStatusModal" 
-                                            data-offense-id="<?php echo $offense['id']; ?>">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -400,105 +301,6 @@ $offenses = $stmt->fetchAll();
         </div>
     </div>
 </div>
-
-<!-- Add Offense Modal -->
-<div class="modal fade" id="addOffenseModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Log New Offense</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST">
-                <input type="hidden" name="action" value="add_offense">
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>Note:</strong> You can log an offense for a specific student or for all students in a room.
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Target Type</label>
-                            <select id="targetType" class="form-select" required>
-                                <option value="">Select Target Type</option>
-                                <option value="student">Specific Student</option>
-                                <option value="room">All Students in Room</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Offense Type</label>
-                            <select name="offense_type" class="form-select" required>
-                                <option value="">Select Type</option>
-                                <option value="Curfew Violation">Curfew Violation</option>
-                                <option value="Noise Violation">Noise Violation</option>
-                                <option value="Property Damage">Property Damage</option>
-                                <option value="Unauthorized Visitors">Unauthorized Visitors</option>
-                                <option value="Smoking/Vaping">Smoking/Vaping</option>
-                                <option value="Alcohol/Drugs">Alcohol/Drugs</option>
-                                <option value="Fighting">Fighting</option>
-                                <option value="Theft">Theft</option>
-                                <option value="Disruptive Behavior">Disruptive Behavior</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="row" id="studentSelection" style="display: none;">
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label">Student</label>
-                            <select name="student_id" class="form-select">
-                                <option value="">Select Student</option>
-                                <?php foreach ($students as $student): ?>
-                                    <option value="<?php echo $student['id']; ?>"><?php echo htmlspecialchars($student['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="row" id="roomSelection" style="display: none;">
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label">Room</label>
-                            <select name="room_id" class="form-select">
-                                <option value="">Select Room</option>
-                                <?php foreach ($rooms as $room): ?>
-                                    <option value="<?php echo $room['id']; ?>"><?php echo htmlspecialchars($room['room_name']); ?> (<?php echo $room['student_count']; ?> students)</option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Severity</label>
-                            <select name="severity" class="form-select" required>
-                                <option value="minor">Minor</option>
-                                <option value="major">Major</option>
-                                <option value="critical">Critical</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Reported By</label>
-                            <input type="text" name="reported_by" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="4" required></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Action Taken</label>
-                        <textarea name="admin_notes" class="form-control" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Log Offense</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <!-- View Offense Modal -->
 <div class="modal fade" id="viewOffenseModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -514,39 +316,7 @@ $offenses = $stmt->fetchAll();
     </div>
 </div>
 
-<!-- Update Status Modal -->
-<div class="modal fade" id="updateStatusModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Update Offense Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST">
-                <input type="hidden" name="action" value="update_status">
-                <input type="hidden" name="offense_id" id="updateOffenseId">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select" required>
-                            <option value="pending">Pending</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="escalated">Escalated</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Admin Response</label>
-                        <textarea name="admin_response" class="form-control" rows="4" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Status</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<!-- (Update Status Modal removed for view-only mode) -->
 
 <script>
 // Run after all assets (including jQuery/Bootstrap in footer) are loaded
@@ -604,47 +374,7 @@ window.addEventListener('load', function() {
         modal.find('#offenseDetails').html(content);
     });
     
-    // Handle update status modal
-    $('#updateStatusModal').on('show.bs.modal', function (event) {
-        var button = $(event.relatedTarget);
-        var offenseId = button.data('offense-id');
-        $('#updateOffenseId').val(offenseId);
-        console.log('Setting offense ID:', offenseId);
-    });
-    
-    // Add form submission logging
-    $('#updateStatusModal form').on('submit', function(e) {
-        var formData = $(this).serialize();
-        console.log('Form being submitted:', formData);
-        
-        // Check if all required fields are filled
-        var status = $('select[name="status"]').val();
-        var adminResponse = $('textarea[name="admin_response"]').val();
-        var offenseId = $('input[name="offense_id"]').val();
-        
-        if (!status || !adminResponse || !offenseId) {
-            e.preventDefault();
-            alert('Please fill in all required fields.');
-            return false;
-        }
-    });
-    
-    // Handle target type selection
-    $('#targetType').on('change', function() {
-        var targetType = $(this).val();
-        $('#studentSelection').hide();
-        $('#roomSelection').hide();
-        $('select[name="student_id"]').prop('required', false);
-        $('select[name="room_id"]').prop('required', false);
-        
-        if (targetType === 'student') {
-            $('#studentSelection').show();
-            $('select[name="student_id"]').prop('required', true);
-        } else if (targetType === 'room') {
-            $('#roomSelection').show();
-            $('select[name="room_id"]').prop('required', true);
-        }
-    });
+    // (Update and add handlers removed for view-only mode)
     
     // Search and filter functionality
     var table = $('#offenseTable').DataTable({

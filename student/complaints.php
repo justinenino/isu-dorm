@@ -7,7 +7,7 @@ $pdo = getConnection();
 /**
  * Generate complaint subject based on room/building, complaint type, and target
  */
-function generateComplaintSubject($student, $complaint_type, $target_type = '', $target_value = '') {
+function generateComplaintSubject($student, $complaint_type, $target_type = '', $target_value = '', $target_building = '') {
     $location = '';
     
     if ($student['room_number'] && $student['building_name']) {
@@ -35,7 +35,11 @@ function generateComplaintSubject($student, $complaint_type, $target_type = '', 
     $target_info = '';
     if ($target_type && $target_value) {
         if ($target_type === 'room') {
-            $target_info = ' (Regarding Room ' . $target_value . ')';
+            if (!empty($target_building)) {
+                $target_info = ' (Regarding ' . $target_building . ' - Room ' . $target_value . ')';
+            } else {
+                $target_info = ' (Regarding Room ' . $target_value . ')';
+            }
         } elseif ($target_type === 'person') {
             $target_info = ' (Regarding ' . $target_value . ')';
         }
@@ -53,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $description = $_POST['description'];
                 $target_type = $_POST['target_type'] ?? '';
                 $target_value = $_POST['target_value'] ?? '';
+                $target_building = $_POST['target_building'] ?? '';
                 
                 // Get student's room information for auto-generating subjects
                 $stmt = $pdo->prepare("SELECT s.*, r.id as room_id, r.room_number, b.name as building_name
@@ -64,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $student = $stmt->fetch();
                 
                 // Auto-generate subject based on room/building, complaint type, and target
-                $subject = generateComplaintSubject($student, $complaint_type, $target_type, $target_value);
+                $subject = generateComplaintSubject($student, $complaint_type, $target_type, $target_value, $target_building);
                 
                 $stmt = $pdo->prepare("INSERT INTO complaints (student_id, subject, description) VALUES (?, ?, ?)");
                 $stmt->execute([$_SESSION['user_id'], $subject, $description]);
@@ -90,16 +95,13 @@ $stmt = $pdo->prepare("SELECT s.*, r.id as room_id, r.room_number, b.name as bui
 $stmt->execute([$_SESSION['user_id']]);
 $student = $stmt->fetch();
 
-// Get list of rooms in the same building for target selection
-$rooms = [];
-if ($student['building_name']) {
-    $stmt = $pdo->prepare("SELECT r.room_number, r.id 
-        FROM rooms r 
-        JOIN buildings b ON r.building_id = b.id 
-        WHERE b.name = ? AND r.id != ? 
-        ORDER BY r.room_number");
-    $stmt->execute([$student['building_name'], $student['room_id'] ?? 0]);
-    $rooms = $stmt->fetchAll();
+// Get list of buildings and rooms for target selection
+$buildings = $pdo->query("SELECT id, name FROM buildings ORDER BY name")->fetchAll();
+$building_rooms = [];
+foreach ($buildings as $b) {
+    $stmt = $pdo->prepare("SELECT id, room_number FROM rooms WHERE building_id = ? ORDER BY room_number");
+    $stmt->execute([$b['id']]);
+    $building_rooms[$b['id']] = $stmt->fetchAll();
 }
 
 // Get list of students in the same building for target selection
@@ -314,9 +316,25 @@ $complaints = $stmt->fetchAll();
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <select name="target_value" class="form-select" id="targetValue" disabled>
-                                    <option value="">Select Target</option>
-                                </select>
+                                <div id="roomTargetGroup" style="display:none;">
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <select name="target_building" class="form-select" id="targetBuilding" disabled>
+                                                <option value="">Select Building</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <select name="target_value" class="form-select" id="targetValue" disabled>
+                                                <option value="">Select Room</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="personTargetGroup" style="display:none;">
+                                    <select name="target_value_person" class="form-select" id="targetValuePerson" disabled>
+                                        <option value="">Select Person</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                         <small class="form-text text-muted">If your complaint is about a specific room or person, select them here. Leave blank for general complaints. <strong>Note:</strong> You cannot report yourself - your name will not appear in the person list.</small>
@@ -374,10 +392,10 @@ $(document).ready(function() {
     // Auto-generate subject preview
     var studentLocation = '<?php echo $student['room_number'] && $student['building_name'] ? $student['building_name'] . ' - Room ' . $student['room_number'] : ($student['building_name'] ? $student['building_name'] : 'Dormitory'); ?>';
     
-    // Room options for target selection
-    var roomOptions = <?php echo json_encode($rooms); ?>;
-    
-    // Student options for target selection
+    // Building and room options for target selection
+    var buildings = <?php echo json_encode($buildings); ?>;
+    var buildingRooms = <?php echo json_encode($building_rooms); ?>;
+    // Student options for target selection (all students with room and building)
     var studentOptions = <?php echo json_encode($students_in_building); ?>;
     
     function updateSubjectPreview() {
@@ -400,9 +418,12 @@ $(document).ready(function() {
             var generatedSubject = studentLocation + ' - ' + typeLabels[complaintType];
             
             // Add target information if specified
-            if (targetType && targetValue) {
+            if (targetType) {
                 if (targetType === 'room') {
-                    generatedSubject += ' (Regarding Room ' + targetValue + ')';
+                    var bName = $('#targetBuilding option:selected').text();
+                    if (bName && targetValue) {
+                        generatedSubject += ' (Regarding ' + bName + ' - Room ' + targetValue + ')';
+                    }
                 } else if (targetType === 'person') {
                     generatedSubject += ' (Regarding ' + targetValue + ')';
                 }
@@ -420,32 +441,57 @@ $(document).ready(function() {
     // Handle target type selection
     $('#targetType').on('change', function() {
         var targetType = $(this).val();
-        var targetSelect = $('#targetValue');
+        var targetBuilding = $('#targetBuilding');
+        var targetRoom = $('#targetValue');
+        var targetPerson = $('#targetValuePerson');
         
-        // Clear and disable target value select
-        targetSelect.empty().append('<option value="">Select Target</option>');
+        // Reset all
+        $('#roomTargetGroup').hide();
+        $('#personTargetGroup').hide();
+        targetBuilding.prop('disabled', true).empty().append('<option value="">Select Building</option>');
+        targetRoom.prop('disabled', true).empty().append('<option value="">Select Room</option>');
+        targetPerson.prop('disabled', true).empty().append('<option value="">Select Person</option>');
         
         if (targetType === 'room') {
-            targetSelect.prop('disabled', false);
-            roomOptions.forEach(function(room) {
-                targetSelect.append('<option value="' + room.room_number + '">Room ' + room.room_number + '</option>');
+            $('#roomTargetGroup').show();
+            targetBuilding.prop('disabled', false);
+            buildings.forEach(function(b) {
+                targetBuilding.append('<option value="' + b.id + '">' + b.name + '</option>');
             });
         } else if (targetType === 'person') {
-            targetSelect.prop('disabled', false);
+            $('#personTargetGroup').show();
+            targetPerson.prop('disabled', false);
             studentOptions.forEach(function(student) {
                 var displayName = student.first_name + ' ' + student.last_name;
                 var identifier = ' (' + student.school_id + ' - Room ' + student.room_number + ')';
-                targetSelect.append('<option value="' + displayName + '">' + displayName + identifier + '</option>');
+                targetPerson.append('<option value="' + displayName + '">' + displayName + identifier + '</option>');
             });
-        } else {
-            targetSelect.prop('disabled', true);
         }
         
         updateSubjectPreview();
     });
     
+    // Populate rooms when building changes
+    $('#targetBuilding').on('change', function() {
+        var buildingId = $(this).val();
+        var targetRoom = $('#targetValue');
+        targetRoom.prop('disabled', true).empty().append('<option value="">Select Room</option>');
+        if (buildingId && buildingRooms[buildingId]) {
+            targetRoom.prop('disabled', false);
+            buildingRooms[buildingId].forEach(function(r) {
+                targetRoom.append('<option value="' + r.room_number + '">Room ' + r.room_number + '</option>');
+            });
+        }
+        updateSubjectPreview();
+    });
+    
     // Handle target value selection
-    $('#targetValue').on('change', updateSubjectPreview);
+    $('#targetValue, #targetValuePerson').on('change', function(){
+        if ($('#targetType').val() === 'person') {
+            $('select[name="target_value"]').val($('#targetValuePerson').val());
+        }
+        updateSubjectPreview();
+    });
     
     // Handle view complaint modal
     $('#viewComplaintModal').on('show.bs.modal', function (event) {
